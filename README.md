@@ -1,56 +1,52 @@
 # Mouse Recorder
 
-Enregistre clics, scroll et mouvements souris globaux et les rejoue n fois. Les sessions sont nommées et persistées dans `./sessions/`.
+Enregistre clics, scroll, mouvements souris et frappes clavier, puis les rejoue autant de fois que tu veux. Interface overlay toujours au premier plan, sessions nommées et persistées dans `./sessions/`.
 
-## Installation
+## Lancement rapide
+
+Double-clique sur **`lancer.bat`** — il installe tout automatiquement à la première ouverture.
+
+> Nécessite Windows 10/11. Aucune installation manuelle requise.
+
+## Interface
+
+L'overlay s'affiche en haut à droite de l'écran. Il reste visible par-dessus toutes les fenêtres.
+
+Pendant la **lecture**, l'overlay devient transparent et les clics passent au travers — tu interagis normalement avec ton application.
+
+| Bouton | Raccourci | Action |
+|--------|-----------|--------|
+| ⏺ | **F8** | Démarrer l'enregistrement |
+| ⏹ | **F9** | Arrêter et sauvegarder |
+| ▶ | **F10** | Lancer la lecture |
+| — | **Échap** | Stopper la lecture |
+| — | **F12** | Quitter |
+
+### Réglages
+
+| Paramètre | Description |
+|-----------|-------------|
+| Répétitions | Nombre de fois que la session est jouée |
+| Délai (s) | Pause entre chaque passe |
+| Skip moves | Ignore les déplacements souris à la lecture |
+
+## Ce qui est enregistré
+
+- Clics souris (gauche, droit, molette)
+- Défilement (scroll)
+- Déplacements souris
+- Frappes clavier (touches maintenues, combos)
+- Drag & drop
+
+## Installation manuelle (optionnel)
+
+Si tu préfères ne pas utiliser `lancer.bat` :
 
 ```powershell
-uv venv
-uv pip install pynput
-```
+# Installer uv si absent
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-## Lancement
-
-```powershell
-python mouse_recorder.py
-```
-
-## Raccourcis clavier
-
-| Touche | Action |
-|---|---|
-| **F8** | Démarrer l'enregistrement |
-| **F9** | Arrêter et sauvegarder (demande un nom) |
-| **F10** | Lancer la lecture de la session active |
-| **Échap** | Stopper la lecture en cours |
-| **F12** | Quitter le programme |
-
-## Commandes CLI
-
-Tape directement dans le terminal pendant que le script tourne.
-
-| Commande | Description |
-|---|---|
-| `list` | Lister les sessions enregistrées |
-| `load <nom>` | Charger une session en mémoire |
-| `times <n>` | Nombre de répétitions |
-| `delay <s>` | Délai entre chaque passe |
-| `skipmoves on/off` | Ignorer les mouvements à la lecture |
-| `help` | Afficher l'aide |
-
-## Exemple de workflow
-
-```
-> list
-  craft_potion              512 evt    23.40s
-  farm_route                128 evt     8.10s
-
-> load craft_potion
-✔ Session 'craft_potion' chargée
-
-> times 10
-  Répétitions : 10
-
-[F10] → Lance la lecture 10x
-[Échap] → Stop si besoin
+# Installer les dépendances et lancer
+uv sync
+uv run python mouse_recorder.py
 ```
