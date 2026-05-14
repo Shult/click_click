@@ -1,6 +1,6 @@
 """
-Mouse Recorder & Replayer
-─────────────────────────
+Mouse & Keyboard Recorder / Replayer
+─────────────────────────────────────
 F8   → Démarrer l'enregistrement
 F9   → Arrêter et sauvegarder
 F10  → Lancer la lecture (session active)
@@ -16,8 +16,8 @@ import threading
 import os
 import sys
 from pynput import mouse, keyboard
-from pynput.mouse import Button, Controller
-from pynput.keyboard import Key
+from pynput.mouse import Button, Controller as MouseController
+from pynput.keyboard import Key, KeyCode, Controller as KeyboardController
 
 SESSIONS_DIR = "sessions"
 os.makedirs(SESSIONS_DIR, exist_ok=True)
@@ -39,6 +39,23 @@ play_delay = 1.0
 play_skip_moves = False
 
 btn_map = {"left": Button.left, "right": Button.right, "middle": Button.middle}
+HOTKEYS = {Key.f8, Key.f9, Key.f10, Key.f12, Key.esc}
+
+
+def key_to_data(key):
+    if isinstance(key, Key):
+        return {"key_type": "special", "key": key.name}
+    if hasattr(key, "char") and key.char:
+        return {"key_type": "char", "key": key.char}
+    return {"key_type": "vk", "key": key.vk}
+
+
+def data_to_key(data):
+    if data["key_type"] == "special":
+        return Key[data["key"]]
+    if data["key_type"] == "char":
+        return KeyCode.from_char(data["key"])
+    return KeyCode.from_vk(data["key"])
 
 
 # ──────────────────────────────────────────────
@@ -105,13 +122,19 @@ def on_move(x, y):
         events.append({"type": "move", "x": x, "y": y, "t": ts()})
 
 
+def on_key_record(key, pressed):
+    if recording and key not in HOTKEYS:
+        events.append({"type": "key", "pressed": pressed, "t": ts(), **key_to_data(key)})
+
+
 # ──────────────────────────────────────────────
 # PLAY
 # ──────────────────────────────────────────────
 
 def play_loop():
     global playing
-    m = Controller()
+    m = MouseController()
+    kb = KeyboardController()
     evts = [e for e in events if e["type"] != "move"] if play_skip_moves else events
 
     for i in range(play_times):
@@ -133,16 +156,21 @@ def play_loop():
             prev_t = event["t"]
 
             etype = event["type"]
-            x, y = int(event["x"]), int(event["y"])
             if etype == "move":
-                m.position = (x, y)
+                m.position = (int(event["x"]), int(event["y"]))
             elif etype == "click":
-                m.position = (x, y)
+                m.position = (int(event["x"]), int(event["y"]))
                 btn = btn_map.get(event["button"], Button.left)
                 (m.press if event["pressed"] else m.release)(btn)
             elif etype == "scroll":
-                m.position = (x, y)
+                m.position = (int(event["x"]), int(event["y"]))
                 m.scroll(event["dx"], event["dy"])
+            elif etype == "key":
+                try:
+                    key = data_to_key(event)
+                    (kb.press if event["pressed"] else kb.release)(key)
+                except Exception:
+                    pass
 
         if i < play_times - 1 and not stop_play_event.is_set():
             print(f"   Pause {play_delay}s...")
@@ -222,8 +250,8 @@ def ask_and_save(duration):
 # ──────────────────────────────────────────────
 
 def print_help():
-    print("\n=== Mouse Recorder ===")
-    print("  F8    → Démarrer l'enregistrement")
+    print("\n=== Mouse & Keyboard Recorder ===")
+    print("  F8    → Démarrer l'enregistrement (souris + clavier)")
     print("  F9    → Arrêter et sauvegarder")
     print("  F10   → Lancer la lecture")
     print("  Échap → Stopper la lecture")
@@ -284,7 +312,10 @@ def main():
     mouse_listener = mouse.Listener(on_click=on_click, on_scroll=on_scroll, on_move=on_move)
     mouse_listener.start()
 
-    kb_listener = keyboard.Listener(on_press=on_key_press)
+    kb_listener = keyboard.Listener(
+        on_press=lambda k: (on_key_record(k, True), on_key_press(k)),
+        on_release=lambda k: on_key_record(k, False),
+    )
     kb_listener.start()
 
     cli_thread = threading.Thread(target=cli_loop, daemon=True)
