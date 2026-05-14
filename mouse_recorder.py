@@ -22,6 +22,8 @@ from pynput.keyboard import Key, KeyCode, Controller as KeyboardController
 SESSIONS_DIR = "sessions"
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 
+MOVE_INTERVAL = 1 / 60  # max 60 positions enregistrées par seconde
+
 # ──────────────────────────────────────────────
 # STATE
 # ──────────────────────────────────────────────
@@ -30,6 +32,7 @@ events = []
 recording = False
 playing = False
 start_time = None
+_last_move_t = -1.0
 play_thread = None
 stop_play_event = threading.Event()
 quit_event = threading.Event()
@@ -118,8 +121,12 @@ def on_scroll(x, y, dx, dy):
         events.append({"type": "scroll", "x": x, "y": y, "dx": dx, "dy": dy, "t": ts()})
 
 def on_move(x, y):
+    global _last_move_t
     if recording:
-        events.append({"type": "move", "x": x, "y": y, "t": ts()})
+        now = ts()
+        if now - _last_move_t >= MOVE_INTERVAL:
+            events.append({"type": "move", "x": x, "y": y, "t": now})
+            _last_move_t = now
 
 
 def on_key_record(key, pressed):
@@ -189,7 +196,7 @@ def play_loop():
 # ──────────────────────────────────────────────
 
 def on_key_press(key):
-    global recording, playing, start_time, play_thread, stop_play_event, active_session
+    global recording, playing, start_time, play_thread, stop_play_event, active_session, _last_move_t
 
     if key == Key.f8:
         if recording:
@@ -200,6 +207,7 @@ def on_key_press(key):
             events.clear()
             recording = True
             start_time = time.perf_counter()
+            _last_move_t = -1.0
             print("⏺ Enregistrement démarré — F9 pour arrêter")
 
     elif key == Key.f9:
