@@ -24,6 +24,21 @@ Pendant la **lecture**, l'overlay devient transparent et les clics passent au tr
 
 Ces cinq touches sont réservées : elles ne sont jamais enregistrées dans une session.
 
+### Sessions
+
+Le panneau **📂 Sessions** liste tout ce qui est enregistré sur disque, dans une liste défilable — plus de plafond à dix entrées. Le champ en haut à droite **filtre par nom** (casse ignorée, Échap vide le filtre) ; le compteur sous la liste indique combien de sessions correspondent.
+
+Un **clic** désigne une session, un **double-clic** la charge. Les quatre boutons agissent sur la session désignée :
+
+| Bouton | Effet |
+|--------|-------|
+| Charger | Charge la session (comme le double-clic) |
+| Renommer | Le nom est validé comme à la sauvegarde ; un nom déjà pris est refusé |
+| Dupliquer | Copie sous le premier nom libre `nom (2)`, `nom (3)`… métadonnées d'origine conservées |
+| Supprimer | **Irréversible** : demande confirmation, efface le fichier sans passer par la corbeille |
+
+La session active apparaît en vert. Si tu la renommes, elle reste active sous son nouveau nom ; si tu la supprimes, l'en-tête revient à `—` mais les évènements déjà chargés restent en mémoire — une lecture en cours n'est pas interrompue et F10 fonctionne toujours.
+
 ### Réglages
 
 | Paramètre | Description |

@@ -8,6 +8,7 @@ d'évènements nu — restent lisibles telles quelles.
 import json
 import logging
 import os
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -55,6 +56,16 @@ def sanitize_name(name: str) -> str:
 
 def session_path(name: str) -> Path:
     return paths.sessions_dir() / f"{name}.json"
+
+
+def _free_name(base: str) -> str:
+    """Premier « base (n) » disponible, sans dépasser la longueur maximale."""
+    for n in range(2, 1000):
+        suffix = f" ({n})"
+        candidate = base[:MAX_NAME_LEN - len(suffix)].rstrip() + suffix
+        if not session_path(candidate).exists():
+            return candidate
+    raise SessionError("Trop de copies de cette session")
 
 
 # ── Compression ──────────────────────────────────────────────────────────────
@@ -197,6 +208,90 @@ def load_session(name: str) -> bool:
         )
     log.info("session « %s » chargée : %d évènements", name, len(state.events))
     return True
+
+
+# ── Gestion des fichiers de session ──────────────────────────────────────────
+
+def rename_session(old: str, new: str) -> str:
+    """Renomme une session et renvoie le nom retenu.
+
+    Le nom passe par `sanitize_name` : il est saisi à la main, donc au même
+    titre qu'une sauvegarde il peut contenir de quoi faire échouer l'écriture
+    au fond de la pile, là où l'erreur serait invisible.
+    """
+    name = sanitize_name(new)
+    if name == old:
+        return name
+
+    src, dst = session_path(old), session_path(name)
+    # Sur NTFS, `exists()` répond vrai à une simple différence de casse :
+    # « run » → « Run » n'est pas une collision, c'est le même fichier.
+    if dst.exists() and name.lower() != old.lower():
+        raise SessionError(f"« {name} » existe déjà")
+
+    try:
+        os.replace(src, dst)
+    except FileNotFoundError as exc:
+        raise SessionError(f"Session « {old} » introuvable") from exc
+    except OSError as exc:
+        raise SessionError(f"Renommage impossible : {exc.strerror or exc}") from exc
+
+    if state.active_session == old:
+        state.active_session = name
+    log.info("session « %s » renommée en « %s »", old, name)
+    return name
+
+
+def delete_session(name: str) -> None:
+    """Supprime le fichier d'une session. Irréversible."""
+    try:
+        session_path(name).unlink()
+    except FileNotFoundError as exc:
+        raise SessionError(f"Session « {name} » introuvable") from exc
+    except OSError as exc:
+        raise SessionError(f"Suppression impossible : {exc.strerror or exc}") from exc
+
+    if state.active_session == name:
+        # Les évènements chargés restent en mémoire : ils sont peut-être en
+        # cours de lecture, et c'est l'état normal juste après un
+        # enregistrement non sauvegardé.
+        state.active_session = None
+    log.info("session « %s » supprimée", name)
+
+
+def duplicate_session(name: str) -> str:
+    """Copie une session sous le premier nom libre « name (n) »."""
+    src = session_path(name)
+    if not src.exists():
+        raise SessionError(f"Session « {name} » introuvable")
+
+    new = _free_name(name)
+    dst = session_path(new)
+    tmp = dst.with_name(dst.name + ".tmp")
+    try:
+        # Copie octet pour octet : relire puis réécrire le JSON régénérerait
+        # les métadonnées, et la copie ne serait plus le reflet de l'original.
+        shutil.copyfile(src, tmp)
+        os.replace(tmp, dst)
+    except OSError as exc:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise SessionError(f"Copie impossible : {exc.strerror or exc}") from exc
+
+    log.info("session « %s » dupliquée en « %s »", name, new)
+    return new
+
+
+# ── Listage ──────────────────────────────────────────────────────────────────
+
+def filter_names(names: list[str], query: str) -> list[str]:
+    """Ne garde que les noms contenant `query`, casse ignorée."""
+    q = (query or "").strip().casefold()
+    if not q:
+        return list(names)
+    return [n for n in names if q in n.casefold()]
 
 
 def list_sessions(by_date: bool = True) -> list[str]:

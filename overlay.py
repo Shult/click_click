@@ -15,8 +15,6 @@ from version import __version__
 
 log = logging.getLogger(__name__)
 
-MAX_LISTED_SESSIONS = 10
-
 
 class OverlayApp:
     BG = "#1e1e1e"
@@ -44,6 +42,10 @@ class OverlayApp:
         # Dernier compte fini connu : sortir du mode infini doit rendre une
         # valeur utilisable, pas repartir de 1.
         self._finite_times = state.play_times or 1
+        # Filtre du panneau Sessions : volontairement non persisté, une liste
+        # filtrée au démarrage donnerait l'impression d'avoir perdu des fichiers.
+        self._filter = ""
+        self._listed: list[str] = []
 
         self._build_ui()
         self.root.update()
@@ -234,32 +236,173 @@ class OverlayApp:
     def _build_sessions(self, f):
         tk.Frame(f, bg="#2a2a2a", height=1).pack(fill="x")
 
-        names = sessions.list_sessions(by_date=state.sort_by_date)
+        top = tk.Frame(f, bg=self.BG2)
+        top.pack(fill="x", padx=8, pady=(3, 1))
 
-        sort_lbl = "date" if state.sort_by_date else "A-Z"
-        tk.Button(f, text=f"Tri : {sort_lbl}", bg=self.BG2, fg="#555555",
+        self.sort_var = tk.StringVar(value=self._sort_label())
+        tk.Button(top, textvariable=self.sort_var, bg=self.BG2, fg="#555555",
                   font=("Segoe UI", 7), bd=0, cursor="hand2",
                   activebackground=self.BG2, activeforeground="#888888",
-                  command=self._toggle_sort).pack(anchor="w", padx=8, pady=(3, 1))
+                  command=self._toggle_sort).pack(side="left")
+
+        # Filtre : la liste dépassait dix entrées visibles pour une soixantaine
+        # de sessions sur disque. Il complète le défilement, il ne le remplace
+        # pas — on ne devine pas un nom qu'on ne voit plus.
+        self.filter_var = tk.StringVar(value=self._filter)
+        filt = tk.Entry(top, textvariable=self.filter_var, width=10,
+                        bg=self.BG, fg="white", insertbackground="white",
+                        relief="flat", font=("Segoe UI", 7),
+                        highlightthickness=1, highlightcolor="#444444",
+                        highlightbackground="#2a2a2a")
+        filt.pack(side="right")
+        filt.bind("<KeyRelease>", lambda _e: self._on_filter_changed())
+        filt.bind("<Button-1>", lambda _e: self.root.focus_force())
+        filt.bind("<Escape>", lambda _e: self._clear_filter())
+
+        body = tk.Frame(f, bg=self.BG2)
+        body.pack(fill="x", padx=8, pady=(2, 0))
+
+        bar = tk.Scrollbar(body, width=self.px(9), bd=0, relief="flat",
+                           troughcolor="#1b1b1b", bg="#333333",
+                           activebackground="#454545", highlightthickness=0)
+        bar.pack(side="right", fill="y")
+
+        self.sess_list = tk.Listbox(
+            body, height=8, bg=self.BG2, fg="#888888", bd=0,
+            font=("Segoe UI", 8), activestyle="none", selectborderwidth=0,
+            selectbackground="#2f3f2f", selectforeground="white",
+            highlightthickness=0, exportselection=False,
+            yscrollcommand=bar.set,
+        )
+        self.sess_list.pack(side="left", fill="both", expand=True)
+        bar.config(command=self.sess_list.yview)
+        # Un double-clic charge : le clic simple sert désormais à désigner la
+        # session sur laquelle agissent les boutons.
+        self.sess_list.bind("<Double-Button-1>", lambda _e: self._act_load())
+        self.sess_list.bind("<Return>", lambda _e: self._act_load())
+
+        self.sess_msg_var = tk.StringVar()
+        self.sess_msg_lbl = tk.Label(f, textvariable=self.sess_msg_var,
+                                     bg=self.BG2, fg="#666666",
+                                     font=("Segoe UI", 7),
+                                     wraplength=self.px(210), justify="left")
+        self.sess_msg_lbl.pack(fill="x", padx=8, pady=(2, 0))
+
+        acts = tk.Frame(f, bg=self.BG2)
+        acts.pack(fill="x", padx=8, pady=(1, 6))
+        for label, cmd in (("Charger", self._act_load),
+                           ("Renommer", self._act_rename),
+                           ("Dupliquer", self._act_duplicate),
+                           ("Supprimer", self._act_delete)):
+            tk.Button(acts, text=label, bg="#242424", fg="#777777",
+                      font=("Segoe UI", 7), bd=0, relief="flat",
+                      activebackground="#303030", activeforeground="white",
+                      cursor="hand2", pady=3, command=cmd,
+                      ).pack(side="left", expand=True, fill="x", padx=1)
+
+        self._fill_sessions()
+
+    def _sort_label(self) -> str:
+        return "Tri : date" if state.sort_by_date else "Tri : A-Z"
+
+    def _fill_sessions(self, select: str | None = None):
+        """Remplit la liste sans reconstruire le panneau : le filtre survit."""
+        if not self.sess_list.winfo_exists():
+            return
+        names = sessions.list_sessions(by_date=state.sort_by_date)
+        self._listed = sessions.filter_names(names, self._filter)
+
+        self.sess_list.delete(0, "end")
+        for i, name in enumerate(self._listed):
+            self.sess_list.insert("end", name)
+            if name == state.active_session:
+                self.sess_list.itemconfig(i, foreground="#55cc55")
 
         if not names:
-            tk.Label(f, text="Aucune session", bg=self.BG2, fg="#444444",
-                     font=("Segoe UI", 8)).pack(pady=6)
+            self._sess_msg("Aucune session")
+        elif not self._listed:
+            self._sess_msg(f"Aucun nom ne contient « {self._filter} »")
+        else:
+            self._sess_msg(f"{len(self._listed)} / {len(names)} session(s)")
+
+        target = select or state.active_session
+        if target in self._listed:
+            index = self._listed.index(target)
+            self.sess_list.selection_set(index)
+            self.sess_list.see(index)
+
+    def _sess_msg(self, text: str, error: bool = False):
+        # Le panneau peut avoir été refermé entre l'action et son message.
+        if not self.sess_msg_lbl.winfo_exists():
+            return
+        self.sess_msg_var.set(text)
+        self.sess_msg_lbl.config(fg="#cc5555" if error else "#666666")
+
+    def _on_filter_changed(self):
+        self._filter = self.filter_var.get()
+        self._fill_sessions()
+
+    def _clear_filter(self):
+        self.filter_var.set("")
+        self._on_filter_changed()
+
+    # ── Sessions actions ─────────────────────────────────────────────────────
+
+    def _selected_session(self) -> str | None:
+        selection = self.sess_list.curselection()
+        if not selection:
+            self._sess_msg("Sélectionne d'abord une session", error=True)
+            return None
+        return self._listed[selection[0]]
+
+    def _act_load(self):
+        name = self._selected_session()
+        if name:
+            self._load_session(name)
+
+    def _act_rename(self):
+        name = self._selected_session()
+        if not name:
             return
 
-        for name in names[:MAX_LISTED_SESSIONS]:
-            color = "#55cc55" if name == state.active_session else "#888888"
-            tk.Button(f, text=name, bg=self.BG2, fg=color,
-                      font=("Segoe UI", 8), bd=0, anchor="w",
-                      activebackground="#252525", activeforeground="white",
-                      cursor="hand2",
-                      command=lambda n=name: self._load_session(n),
-                      ).pack(fill="x", padx=12, pady=1)
+        def do(raw: str):
+            new = sessions.rename_session(name, raw)
+            self._fill_sessions(select=new)
 
-        if len(names) > MAX_LISTED_SESSIONS:
-            tk.Label(f, text=f"+ {len(names) - MAX_LISTED_SESSIONS} autres",
-                     bg=self.BG2, fg="#444444",
-                     font=("Segoe UI", 7)).pack(pady=(2, 4))
+        self._ask_name("Renommer la session", name, do)
+
+    def _act_duplicate(self):
+        name = self._selected_session()
+        if not name:
+            return
+        try:
+            new = sessions.duplicate_session(name)
+        except SessionError as exc:
+            self._sess_msg(str(exc), error=True)
+            return
+        except Exception:
+            log.exception("duplication de « %s » impossible", name)
+            self._sess_msg("Erreur inattendue, voir le journal", error=True)
+            return
+        self._fill_sessions(select=new)
+        self._sess_msg(f"Copiée en « {new} »")
+
+    def _act_delete(self):
+        name = self._selected_session()
+        if not name:
+            return
+        self._ask_confirm(
+            "Supprimer la session",
+            f"Supprimer définitivement « {name} » ?\n"
+            "Le fichier est effacé, sans corbeille.",
+            "Supprimer",
+            lambda: self._do_delete(name),
+        )
+
+    def _do_delete(self, name: str):
+        sessions.delete_session(name)
+        self._fill_sessions()
+        self._sess_msg(f"« {name} » supprimée")
 
     # ── Panel toggles ────────────────────────────────────────────────────────
 
@@ -272,7 +415,10 @@ class OverlayApp:
     def _toggle_sort(self):
         state.sort_by_date = not state.sort_by_date
         settings.save()
-        self._open_panel("sessions", self._build_sessions)
+        # Rafraîchir plutôt que reconstruire : `_open_panel` sur le panneau déjà
+        # ouvert le refermerait, et le filtre saisi serait perdu.
+        self.sort_var.set(self._sort_label())
+        self._fill_sessions()
 
     def _load_session(self, name: str):
         load_session(name)
@@ -396,20 +542,25 @@ class OverlayApp:
         self.root.wm_attributes("-alpha", 0.22 if enable else 0.93)
         winapi.set_click_through(self._hwnd, enable)
 
-    # ── Save dialog (thread Tk uniquement) ───────────────────────────────────
+    # ── Fenêtres modales (thread Tk uniquement) ──────────────────────────────
 
-    def show_save_dialog(self, duration: float):
+    def _dialog(self, title: str, w: int, h: int) -> tk.Toplevel:
+        """Petite fenêtre accolée à l'overlay, en-tête déplaçable.
+
+        Comme l'overlay, elle est `overrideredirect` : pas de barre de titre
+        Windows, donc le déplacement est à notre charge.
+        """
         dialog = tk.Toplevel(self.root)
         dialog.title("")
         dialog.overrideredirect(True)
         dialog.wm_attributes("-topmost", True)
         dialog.configure(bg=self.HDR)
 
-        self._place_beside(dialog, self.px(220), self.px(150))
+        self._place_beside(dialog, w, h)
 
         hdr = tk.Frame(dialog, bg=self.HDR, cursor="fleur")
         hdr.pack(fill="x")
-        tk.Label(hdr, text="Sauvegarder la session", bg=self.HDR, fg="#555555",
+        tk.Label(hdr, text=title, bg=self.HDR, fg="#555555",
                  font=("Segoe UI", 8)).pack(side="left", padx=7, pady=4)
 
         drag = {"x": 0, "y": 0}
@@ -424,6 +575,22 @@ class OverlayApp:
             )
         hdr.bind("<Button-1>", drag_start)
         hdr.bind("<B1-Motion>", drag_move)
+        return dialog
+
+    def _run_modal(self, dialog: tk.Toplevel):
+        """Attend la fermeture, raccourcis globaux neutralisés."""
+        # Sans ça, taper un nom contenant F8/F10 déclencherait un
+        # enregistrement ou une lecture.
+        state.modal_open = True
+        dialog.grab_set()
+        try:
+            self.root.wait_window(dialog)
+        finally:
+            state.modal_open = False
+
+    def show_save_dialog(self, duration: float):
+        dialog = self._dialog("Sauvegarder la session",
+                              self.px(220), self.px(150))
 
         tk.Label(dialog, text=f"{len(state.events)} évts  •  {duration:.2f}s",
                  bg=self.HDR, fg="#555555",
@@ -468,14 +635,89 @@ class OverlayApp:
         entry.bind("<Escape>", cancel)
         dialog.bind("<Escape>", cancel)
 
-        # Neutralise les raccourcis globaux : sans ça, taper un nom contenant
-        # F8/F10 déclencherait un enregistrement ou une lecture.
-        state.modal_open = True
-        dialog.grab_set()
-        try:
-            self.root.wait_window(dialog)
-        finally:
-            state.modal_open = False
+        self._run_modal(dialog)
+
+    def _ask_name(self, title: str, initial: str, action: Callable[[str], None]):
+        """Demande un nom, réaffiche l'erreur sur place jusqu'à validation."""
+        dialog = self._dialog(title, self.px(220), self.px(120))
+
+        entry_var = tk.StringVar(value=initial)
+        entry = tk.Entry(dialog, textvariable=entry_var,
+                         bg=self.BG, fg="white", insertbackground="white",
+                         relief="flat", font=("Segoe UI", 10),
+                         highlightthickness=1, highlightcolor="#444444",
+                         highlightbackground="#333333")
+        entry.pack(padx=16, pady=(12, 0), fill="x")
+        entry.focus_set()
+        entry.select_range(0, "end")
+
+        error_var = tk.StringVar()
+        tk.Label(dialog, textvariable=error_var, bg=self.HDR, fg="#cc5555",
+                 font=("Segoe UI", 7), wraplength=self.px(190)).pack(pady=(3, 0))
+
+        def confirm(_e=None):
+            try:
+                action(entry_var.get())
+            except SessionError as exc:
+                error_var.set(str(exc))
+                return
+            except Exception:
+                log.exception("%s : échec inattendu", title)
+                error_var.set("Erreur inattendue, voir le journal")
+                return
+            dialog.destroy()
+
+        tk.Button(dialog, text="Valider", bg="#1a4a1a", fg="white",
+                  font=("Segoe UI", 9, "bold"), bd=0, relief="flat",
+                  activebackground="#1a4a1a", activeforeground="white",
+                  cursor="hand2", pady=5, command=confirm).pack(
+                      padx=16, pady=10, fill="x")
+
+        entry.bind("<Return>", confirm)
+        entry.bind("<Escape>", lambda _e: dialog.destroy())
+        dialog.bind("<Escape>", lambda _e: dialog.destroy())
+        self._run_modal(dialog)
+
+    def _ask_confirm(self, title: str, message: str, danger: str,
+                     action: Callable[[], None]):
+        """Confirmation d'une action irréversible.
+
+        Entrée n'est volontairement pas liée au bouton destructeur : la touche
+        est trop facile à enfoncer par réflexe après une saisie.
+        """
+        dialog = self._dialog(title, self.px(220), self.px(120))
+
+        tk.Label(dialog, text=message, bg=self.HDR, fg="#aaaaaa",
+                 font=("Segoe UI", 8), wraplength=self.px(190),
+                 justify="left").pack(padx=16, pady=(12, 10))
+
+        btns = tk.Frame(dialog, bg=self.HDR)
+        btns.pack(padx=16, pady=(0, 10), fill="x")
+
+        def confirm():
+            try:
+                action()
+            except SessionError as exc:
+                self._sess_msg(str(exc), error=True)
+            except Exception:
+                log.exception("%s : échec inattendu", title)
+                self._sess_msg("Erreur inattendue, voir le journal", error=True)
+            dialog.destroy()
+
+        cancel_btn = tk.Button(btns, text="Annuler", bg="#2a2a2a", fg="#aaaaaa",
+                               font=("Segoe UI", 8), bd=0, relief="flat",
+                               activebackground="#3a3a3a", cursor="hand2",
+                               pady=4, command=dialog.destroy)
+        cancel_btn.pack(side="left", expand=True, fill="x", padx=(0, 3))
+        cancel_btn.focus_set()
+        tk.Button(btns, text=danger, bg="#7a1a1a", fg="white",
+                  font=("Segoe UI", 8, "bold"), bd=0, relief="flat",
+                  activebackground="#992222", activeforeground="white",
+                  cursor="hand2", pady=4, command=confirm).pack(
+                      side="left", expand=True, fill="x", padx=(3, 0))
+
+        dialog.bind("<Escape>", lambda _e: dialog.destroy())
+        self._run_modal(dialog)
 
     # ── Polling ──────────────────────────────────────────────────────────────
 
