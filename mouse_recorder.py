@@ -28,6 +28,7 @@ import settings  # noqa: E402
 from overlay import OverlayApp  # noqa: E402
 from player import play_loop  # noqa: E402
 from state import state  # noqa: E402
+from version import __version__  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -81,7 +82,8 @@ def request_quit():
 
 
 def main():
-    log.info("démarrage — données dans %s", paths.home())
+    log.info("ClickClick %s — démarrage, données dans %s",
+             __version__, paths.home())
     settings.load()  # avant l'overlay : il y lit sa position de départ
 
     mouse_listener = mouse.Listener(

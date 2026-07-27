@@ -11,6 +11,7 @@ import settings
 import winapi
 from sessions import SessionError, load_session, save_session
 from state import state
+from version import __version__
 
 log = logging.getLogger(__name__)
 
@@ -95,7 +96,11 @@ class OverlayApp:
         hdr = tk.Frame(self.root, bg=self.HDR, cursor="fleur")
         hdr.pack(fill="x")
         tk.Label(hdr, text="Mouse Recorder", bg=self.HDR, fg="#555555",
-                 font=("Segoe UI", 8)).pack(side="left", padx=7, pady=3)
+                 font=("Segoe UI", 8)).pack(side="left", padx=(7, 0), pady=3)
+        # Affiché en clair : sans repère visible, impossible de savoir quelle
+        # version tourne quand deux binaires coexistent sur la machine.
+        tk.Label(hdr, text=f"v{__version__}", bg=self.HDR, fg="#3a3a3a",
+                 font=("Segoe UI", 7)).pack(side="left", padx=(4, 0), pady=3)
         tk.Button(hdr, text="×", bg=self.HDR, fg="#555555",
                   font=("Segoe UI", 11, "bold"), bd=0,
                   activebackground="#aa2222", activeforeground="white",

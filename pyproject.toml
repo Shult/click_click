@@ -1,6 +1,6 @@
 [project]
 name = "clickclick"
-version = "1.0.0"
+version = "1.0.1"  # doit rester aligné sur version.py (voir tests/test_version.py)
 description = "Enregistreur et rejoueur d'inputs souris/clavier pour Windows, avec overlay flottant."
 readme = "README.md"
 requires-python = ">=3.12"
