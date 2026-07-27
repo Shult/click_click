@@ -19,10 +19,19 @@ Pendant la **lecture**, l'overlay devient transparent et les clics passent au tr
 | ⏺ | **F8** | Démarrer l'enregistrement |
 | ⏹ | **F9** | Arrêter et sauvegarder |
 | ▶ | **F10** | Lancer la lecture (la session chargée, ou la file d'enchaînement) |
+| — | **F11** | Masquer / réafficher l'overlay |
 | — | **Échap** | Stopper la lecture |
-| — | **F12** | Quitter |
+| × | **F12** | Quitter |
 
-Ces cinq touches sont réservées : elles ne sont jamais enregistrées dans une session.
+Ces six touches sont réservées : elles ne sont jamais enregistrées dans une session.
+
+### Masquer l'overlay
+
+**F11**, ou le bouton `—` de l'en-tête, escamote l'overlay sans rien arrêter : les raccourcis restent actifs, un enregistrement ou une lecture en cours continue. F11 le fait revenir, au même endroit et toujours au premier plan. Arrêter un enregistrement (F9) le réaffiche de lui-même, pour que la fenêtre de sauvegarde ne flotte pas sans contexte.
+
+L'état masqué **n'est pas conservé** au redémarrage : une application qui se lance invisible ressemble à une application qui ne s'est pas lancée.
+
+> Il n'y a pas (encore) d'icône dans la zone de notification : elle imposerait soit `pystray` + `Pillow`, soit une implémentation `Shell_NotifyIcon` maison dans `winapi.py`. F11 rend le même service sans peser sur la taille de l'exécutable.
 
 ### Sessions
 

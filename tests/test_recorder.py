@@ -82,6 +82,12 @@ def test_hotkeys_are_never_recorded(fresh_state):
     assert fresh_state.events == []
 
 
+def test_every_reserved_key_is_declared():
+    """La liste est le contrat : un raccourci absent d'ici serait enregistré."""
+    assert recorder.HOTKEYS == {Key.f8, Key.f9, Key.f10, Key.f11, Key.f12,
+                                Key.esc}
+
+
 def test_nothing_recorded_while_idle(fresh_state):
     recorder.on_click(1, 1, Button.left, True)
     recorder.on_move(2, 2)

@@ -39,6 +39,7 @@ class OverlayApp:
 
         self._drag_x = self._drag_y = 0
         self._click_through = False
+        self._hidden = False
         # Dernier compte fini connu : sortir du mode infini doit rendre une
         # valeur utilisable, pas repartir de 1.
         self._finite_times = state.play_times or 1
@@ -110,6 +111,10 @@ class OverlayApp:
                   font=("Segoe UI", 11, "bold"), bd=0,
                   activebackground="#aa2222", activeforeground="white",
                   cursor="hand2", command=self._quit).pack(side="right", padx=5)
+        tk.Button(hdr, text="—", bg=self.HDR, fg="#555555",
+                  font=("Segoe UI", 8, "bold"), bd=0,
+                  activebackground="#333333", activeforeground="white",
+                  cursor="hand2", command=self.toggle_visible).pack(side="right")
         hdr.bind("<Button-1>", self._drag_start)
         hdr.bind("<B1-Motion>", self._drag_move)
         hdr.bind("<ButtonRelease-1>", self._drag_end)
@@ -674,6 +679,37 @@ class OverlayApp:
         state.window_pos = (self.root.winfo_x(), self.root.winfo_y())
         settings.save()
 
+    # ── Masquage ─────────────────────────────────────────────────────────────
+
+    def toggle_visible(self):
+        self._set_hidden(not self._hidden)
+
+    def _set_hidden(self, hidden: bool):
+        """Masque ou réaffiche l'overlay sans arrêter l'application.
+
+        L'état n'est volontairement pas persisté : démarrer masqué donnerait
+        l'impression que l'application ne s'est pas lancée, sans rien à cliquer
+        pour en douter.
+        """
+        if hidden == self._hidden:
+            return
+        self._hidden = hidden
+
+        if hidden:
+            self.root.withdraw()
+            log.info("overlay masqué — F11 pour le réafficher")
+            return
+
+        self.root.deiconify()
+        # Windows rend la fenêtre sans forcément lui redonner ses attributs :
+        # sans ces trois lignes, l'overlay réapparaît derrière les autres
+        # fenêtres et perd son mode click-through en pleine lecture.
+        self.root.wm_attributes("-topmost", True)
+        self.root.wm_attributes("-alpha", 0.22 if self._click_through else 0.93)
+        self._hwnd = self.root.winfo_id()
+        winapi.set_click_through(self._hwnd, self._click_through)
+        log.info("overlay réaffiché")
+
     # ── Click-through ────────────────────────────────────────────────────────
 
     def _set_click_through(self, enable: bool):
@@ -730,6 +766,9 @@ class OverlayApp:
             state.modal_open = False
 
     def show_save_dialog(self, duration: float):
+        # Une saisie de nom accolée à un overlay masqué flotterait sans contexte,
+        # et l'utilisateur ne saurait pas quoi faire de cette fenêtre orpheline.
+        self._set_hidden(False)
         dialog = self._dialog("Sauvegarder la session",
                               self.px(220), self.px(150))
 

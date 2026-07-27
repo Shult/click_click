@@ -5,7 +5,7 @@ from pynput.keyboard import Key, KeyCode
 from state import state
 
 MOVE_INTERVAL = 1 / 60
-HOTKEYS = {Key.f8, Key.f9, Key.f10, Key.f12, Key.esc}
+HOTKEYS = {Key.f8, Key.f9, Key.f10, Key.f11, Key.f12, Key.esc}
 
 
 def key_to_data(key) -> dict:

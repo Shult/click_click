@@ -4,6 +4,7 @@ ClickClick — Mouse & Keyboard Recorder / Replayer
 F8    → Démarrer l'enregistrement
 F9    → Arrêter et sauvegarder
 F10   → Lancer la lecture
+F11   → Masquer / réafficher l'overlay
 Échap → Stopper la lecture
 F12   → Quitter
 """
@@ -64,6 +65,11 @@ def on_key_press(key):
             target=play_loop, name="player", daemon=True
         )
         state.play_thread.start()
+
+    elif key == Key.f11:
+        # Toucher aux widgets depuis un écouteur pynput plante par
+        # intermittence : le basculement part dans la file du thread Tk.
+        state.ui_queue.put(lambda app: app.toggle_visible())
 
     elif key == Key.esc:
         if state.playing:
