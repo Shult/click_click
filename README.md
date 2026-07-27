@@ -20,7 +20,7 @@ Pendant la **lecture**, l'overlay devient transparent et les clics passent au tr
 | ⏹ | **F9** | Arrêter et sauvegarder |
 | ▶ | **F10** | Lancer la lecture (la session chargée, ou la file d'enchaînement) |
 | — | **F11** | Masquer / réafficher l'overlay |
-| — | **Échap** | Stopper la lecture |
+| · | **Échap** | Stopper la lecture |
 | × | **F12** | Quitter |
 
 Ces six touches sont réservées : elles ne sont jamais enregistrées dans une session.
@@ -65,17 +65,31 @@ Chaque session rend la souris et le clavier avant la suivante : une session mal 
 | Paramètre | Description |
 |-----------|-------------|
 | Répétitions | Nombre de fois que la session est jouée. **Clique sur le nombre** pour le taper directement (Entrée valide, Échap annule) ; **∞** rejoue jusqu'à Échap |
-| Délai (s) | Pause entre chaque passe |
+| Délai (s) | Pause entre chaque passe, et entre deux sessions d'une file |
 | Vitesse | Tempo de la lecture, de **0.25×** à **4×** par paliers (0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4) |
 | Skip moves | Ignore les déplacements souris à la lecture |
 
-La vitesse divise les horodatages enregistrés : à 2× une session de 30 s en prend 15. Elle ne s'applique **pas** au délai entre les passes, qui est une pause voulue et non du rythme enregistré. Comme les répétitions, elle est figée au lancement de la lecture.
+En mode infini, le statut affiche la passe en cours sur `∞` — `▶ PLAYING (37/∞)`. Une saisie qui n'est pas un entier ≥ 1 est refusée sans rien changer. Le nombre de passes est figé au lancement de la lecture : modifier le réglage en cours de route n'affecte que la lecture suivante.
+
+La vitesse divise les horodatages enregistrés : à 2× une session de 30 s en prend 15. Elle ne s'applique **pas** au délai, qui est une pause voulue et non du rythme enregistré. Comme les répétitions, elle est figée au lancement de la lecture.
 
 > Au-delà de 2×, l'application pilotée peut ne plus suivre : un menu qui met 200 ms à s'ouvrir ne s'ouvrira pas plus vite parce que le clic suivant arrive plus tôt. Une session qui échoue à 4× n'est pas forcément mal enregistrée.
 
-En mode infini, le statut affiche la passe en cours sur `∞` — `▶ PLAYING (37/∞)`. Une saisie qui n'est pas un entier ≥ 1 est refusée sans rien changer. Le nombre de passes est figé au lancement de la lecture : modifier le réglage en cours de route n'affecte que la lecture suivante.
-
 Ces réglages, la file d'enchaînement, le tri de la liste des sessions et la position de l'overlay sont **conservés d'un lancement à l'autre** (`settings.json`). Un fichier absent, illisible ou incohérent est ignoré sans bruit : l'application repart sur ses valeurs par défaut, clé par clé — un `settings.json` écrit par une version antérieure se charge donc sans rien perdre du reste.
+
+```jsonc
+{
+  "play_times": 0,              // 0 = infini, sinon 1 à 9999
+  "play_delay": 3.0,
+  "play_speed": 1.5,            // 0.25 à 4
+  "play_skip_moves": false,
+  "playlist": ["connexion", "routine", "deconnexion"],
+  "sort_by_date": true,
+  "window_pos": [1670, 20]
+}
+```
+
+Le fichier se modifie à la main sans risque : chaque valeur douteuse retombe sur son défaut, et un nom de `playlist` qui n'est pas un nom de session valide est écarté.
 
 ## Ce qui est enregistré
 

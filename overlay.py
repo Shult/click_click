@@ -365,7 +365,7 @@ class OverlayApp:
                                                    fill="x", padx=1)
 
     def _fill_queue(self, select: int | None = None):
-        if not self.queue_list.winfo_exists():
+        if not self._exists("queue_list"):
             return
         self.queue_list.delete(0, "end")
         for i, name in enumerate(state.playlist):
@@ -440,9 +440,19 @@ class OverlayApp:
     def _sort_label(self) -> str:
         return "Tri : date" if state.sort_by_date else "Tri : A-Z"
 
+    def _exists(self, attr: str) -> bool:
+        """Vrai si ce widget a été construit et n'a pas encore été détruit.
+
+        Les panneaux sont créés à l'ouverture et détruits à la fermeture : un
+        rafraîchissement demandé entre-temps ne doit pas remonter d'exception,
+        elle serait invisible dans un exécutable sans console.
+        """
+        widget = getattr(self, attr, None)
+        return bool(widget) and bool(widget.winfo_exists())
+
     def _fill_sessions(self, select: str | None = None):
         """Remplit la liste sans reconstruire le panneau : le filtre survit."""
-        if not self.sess_list.winfo_exists():
+        if not self._exists("sess_list"):
             return
         names = sessions.list_sessions(by_date=state.sort_by_date)
         self._listed = sessions.filter_names(names, self._filter)
@@ -468,7 +478,7 @@ class OverlayApp:
 
     def _sess_msg(self, text: str, error: bool = False):
         # Le panneau peut avoir été refermé entre l'action et son message.
-        if not self.sess_msg_lbl.winfo_exists():
+        if not self._exists("sess_msg_lbl"):
             return
         self.sess_msg_var.set(text)
         self.sess_msg_lbl.config(fg="#cc5555" if error else "#666666")
