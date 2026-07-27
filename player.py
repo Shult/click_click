@@ -4,6 +4,7 @@ import time
 from pynput.keyboard import Controller as KeyboardController
 from pynput.mouse import Button, Controller as MouseController
 
+import settings
 import winapi
 from recorder import data_to_key
 from state import state
@@ -102,9 +103,14 @@ def play_loop():
         if state.play_skip_moves else state.events
     )
 
+    # Relevé une seule fois : régler les répétitions pendant une lecture ne doit
+    # pas changer le nombre de passes en cours de route.
+    times = state.play_times
+    i = 0
+
     try:
         with winapi.timer_resolution():
-            for i in range(state.play_times):
+            while times == settings.INFINITE or i < times:
                 if state.stop_play.is_set():
                     break
                 state.play_current = i + 1
@@ -124,9 +130,10 @@ def play_loop():
                 if interrupted:
                     break
 
-                last = i == state.play_times - 1
+                last = times != settings.INFINITE and i == times - 1
                 if not last and state.stop_play.wait(state.play_delay):
                     break
+                i += 1
     except Exception:
         log.exception("la lecture s'est interrompue sur une erreur")
     finally:

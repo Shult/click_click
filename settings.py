@@ -23,6 +23,10 @@ FILENAME = "settings.json"
 MAX_TIMES = 9999
 MAX_DELAY = 3600.0
 
+# Répétitions : « joue jusqu'à Échap ». Zéro plutôt qu'un sentinelle négative
+# ou None, pour rester un entier sérialisable tel quel dans settings.json.
+INFINITE = 0
+
 
 def path():
     return paths.home() / FILENAME
@@ -48,12 +52,48 @@ def _as_bool(value, default: bool) -> bool:
     return value if isinstance(value, bool) else default
 
 
+def _as_times(value) -> int:
+    """Nombre de répétitions, `INFINITE` compris.
+
+    Une valeur négative n'est pas un compte de passes : elle retombe sur le
+    défaut au lieu d'être ramenée dans l'intervalle, où elle deviendrait zéro —
+    c'est-à-dire une boucle infinie que l'utilisateur n'a pas demandée.
+    """
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return 1
+    if n == INFINITE:
+        return INFINITE
+    return min(MAX_TIMES, n) if n > 0 else 1
+
+
 def _as_pos(value):
     """Attend `[x, y]`. Toute autre forme vaut « pas de position mémorisée »."""
     if (isinstance(value, (list, tuple)) and len(value) == 2
             and all(isinstance(n, (int, float)) for n in value)):
         return (int(value[0]), int(value[1]))
     return None
+
+
+# ── Saisie et affichage des répétitions ──────────────────────────────────────
+
+def parse_times(text) -> int | None:
+    """Convertit une saisie clavier en nombre de répétitions.
+
+    Renvoie None si ce n'est pas un entier ≥ 1 ; l'appelant garde alors la
+    valeur précédente. Le mode infini ne passe pas par ici : il a son propre
+    bouton, taper « 0 » est plus souvent une faute de frappe qu'une intention.
+    """
+    try:
+        n = int(str(text).strip())
+    except (TypeError, ValueError):
+        return None
+    return min(MAX_TIMES, n) if n >= 1 else None
+
+
+def format_times(n: int) -> str:
+    return "∞" if n == INFINITE else str(n)
 
 
 # ── Entrées / sorties ────────────────────────────────────────────────────────
@@ -73,15 +113,18 @@ def load() -> None:
         log.warning("préférences au mauvais format, valeurs par défaut conservées")
         return
 
-    state.play_times = _as_int(raw.get("play_times"), 1, 1, MAX_TIMES)
+    state.play_times = _as_times(raw.get("play_times"))
     state.play_delay = _as_float(raw.get("play_delay"), 1.0, 0.0, MAX_DELAY)
     state.play_skip_moves = _as_bool(raw.get("play_skip_moves"), False)
     state.sort_by_date = _as_bool(raw.get("sort_by_date"), True)
     state.window_pos = _as_pos(raw.get("window_pos"))
 
+    # Le journal reste en ASCII : stderr hérite de la page de code de la console
+    # sous Windows, où « ∞ » lève une UnicodeEncodeError.
+    times = "infini" if state.play_times == INFINITE else str(state.play_times)
     log.info(
-        "préférences chargées : %d répétition(s), %.1fs de délai, skip_moves=%s",
-        state.play_times, state.play_delay, state.play_skip_moves,
+        "préférences chargées : %s répétition(s), %.1fs de délai, skip_moves=%s",
+        times, state.play_delay, state.play_skip_moves,
     )
 
 

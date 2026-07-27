@@ -28,9 +28,11 @@ Ces cinq touches sont réservées : elles ne sont jamais enregistrées dans une 
 
 | Paramètre | Description |
 |-----------|-------------|
-| Répétitions | Nombre de fois que la session est jouée |
+| Répétitions | Nombre de fois que la session est jouée. **Clique sur le nombre** pour le taper directement (Entrée valide, Échap annule) ; **∞** rejoue jusqu'à Échap |
 | Délai (s) | Pause entre chaque passe |
 | Skip moves | Ignore les déplacements souris à la lecture |
+
+En mode infini, le statut affiche la passe en cours sur `∞` — `▶ PLAYING (37/∞)`. Une saisie qui n'est pas un entier ≥ 1 est refusée sans rien changer. Le nombre de passes est figé au lancement de la lecture : modifier le réglage en cours de route n'affecte que la lecture suivante.
 
 Ces réglages, le tri de la liste des sessions et la position de l'overlay sont **conservés d'un lancement à l'autre** (`settings.json`). Un fichier absent, illisible ou incohérent est ignoré sans bruit : l'application repart sur ses valeurs par défaut.
 

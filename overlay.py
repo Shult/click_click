@@ -41,6 +41,9 @@ class OverlayApp:
 
         self._drag_x = self._drag_y = 0
         self._click_through = False
+        # Dernier compte fini connu : sortir du mode infini doit rendre une
+        # valeur utilisable, pas repartir de 1.
+        self._finite_times = state.play_times or 1
 
         self._build_ui()
         self.root.update()
@@ -179,18 +182,27 @@ class OverlayApp:
                      font=("Segoe UI", 8), width=12, anchor="w").pack(side="left")
             widget_fn(r).pack(side="right")
 
-        self.times_var = tk.StringVar(value=str(state.play_times))
+        self.times_var = tk.StringVar(value=settings.format_times(state.play_times))
 
         def times_w(p):
             f2 = tk.Frame(p, bg=self.BG2)
             tk.Button(f2, text=" − ", bg="#2a2a2a", fg="white", bd=0,
                       font=("Segoe UI", 9), activebackground="#3a3a3a",
                       command=lambda: self._adj("times", -1)).pack(side="left")
-            tk.Label(f2, textvariable=self.times_var, bg=self.BG2, fg="white",
-                     font=("Segoe UI", 9), width=3, anchor="center").pack(side="left")
+            # Conteneur : le nombre y est tantôt un libellé, tantôt un champ de
+            # saisie. Régler 200 répétitions au bouton « + » demandait 199 clics.
+            self.times_box = tk.Frame(f2, bg=self.BG2)
+            self.times_box.pack(side="left")
+            self._show_times_label()
             tk.Button(f2, text=" + ", bg="#2a2a2a", fg="white", bd=0,
                       font=("Segoe UI", 9), activebackground="#3a3a3a",
                       command=lambda: self._adj("times", 1)).pack(side="left")
+            self.inf_btn = tk.Button(
+                f2, text=" ∞ ", fg="white", bd=0, font=("Segoe UI", 9),
+                cursor="hand2", command=self._toggle_infinite,
+            )
+            self.inf_btn.pack(side="left", padx=(4, 0))
+            self._paint_infinite_btn()
             return f2
         row("Répétitions", times_w)
 
@@ -268,12 +280,87 @@ class OverlayApp:
 
     # ── Settings actions ─────────────────────────────────────────────────────
 
+    def _show_times_label(self):
+        """Affiche le nombre de répétitions, cliquable pour le saisir."""
+        for w in self.times_box.winfo_children():
+            w.destroy()
+        lbl = tk.Label(self.times_box, textvariable=self.times_var, bg=self.BG2,
+                       fg="white", font=("Segoe UI", 9), width=4,
+                       anchor="center", cursor="hand2")
+        lbl.pack()
+        lbl.bind("<Button-1>", lambda _e: self._edit_times())
+
+    def _edit_times(self):
+        """Remplace le nombre par un champ de saisie, le temps d'une valeur."""
+        if state.playing:
+            return  # l'overlay est click-through, mais le clavier reste actif
+        for w in self.times_box.winfo_children():
+            w.destroy()
+
+        var = tk.StringVar(value="" if state.play_times == settings.INFINITE
+                          else str(state.play_times))
+        entry = tk.Entry(self.times_box, textvariable=var, width=4,
+                         bg=self.BG, fg="white", insertbackground="white",
+                         relief="flat", justify="center", font=("Segoe UI", 9),
+                         highlightthickness=1, highlightcolor="#444444",
+                         highlightbackground="#333333")
+        entry.pack()
+        # La fenêtre est `overrideredirect` : Windows ne lui donne pas le focus
+        # clavier de lui-même, il faut le réclamer.
+        self.root.focus_force()
+        entry.focus_set()
+        entry.select_range(0, "end")
+
+        # `_show_times_label` détruit le champ, ce qui déclenche à son tour le
+        # <FocusOut> : sans ce verrou, la fermeture se rappelle elle-même.
+        closing = False
+
+        def close(validate: bool):
+            nonlocal closing
+            if closing:
+                return
+            closing = True
+            if validate:
+                value = settings.parse_times(var.get())
+                # Saisie refusée : rien ne change. Le champ redevient un
+                # libellé affichant l'ancienne valeur, la correction est lisible.
+                if value is not None:
+                    self._set_times(value)
+            self._show_times_label()
+
+        entry.bind("<Return>", lambda _e: close(True))
+        entry.bind("<KP_Enter>", lambda _e: close(True))
+        entry.bind("<Escape>", lambda _e: close(False))
+        entry.bind("<FocusOut>", lambda _e: close(False))
+
+    def _set_times(self, value: int):
+        state.play_times = value
+        self.times_var.set(settings.format_times(value))
+        if value != settings.INFINITE:
+            self._finite_times = value
+        self._paint_infinite_btn()
+        settings.save()
+
+    def _paint_infinite_btn(self):
+        on = state.play_times == settings.INFINITE
+        self.inf_btn.config(bg="#1a4a1a" if on else "#2a2a2a",
+                            activebackground="#245a24" if on else "#3a3a3a")
+
+    def _toggle_infinite(self):
+        if state.play_times == settings.INFINITE:
+            self._set_times(self._finite_times)
+        else:
+            self._set_times(settings.INFINITE)
+
     def _adj(self, what: str, delta):
         if what == "times":
-            state.play_times = max(1, min(settings.MAX_TIMES,
-                                          state.play_times + int(delta)))
-            self.times_var.set(str(state.play_times))
-        elif what == "delay":
+            # Depuis le mode infini, « − » et « + » repartent du dernier compte
+            # fini : incrémenter zéro n'aurait aucun sens pour l'utilisateur.
+            base = (self._finite_times if state.play_times == settings.INFINITE
+                    else state.play_times)
+            self._set_times(max(1, min(settings.MAX_TIMES, base + int(delta))))
+            return
+        if what == "delay":
             state.play_delay = round(
                 max(0.0, min(settings.MAX_DELAY, state.play_delay + delta)), 1
             )
@@ -411,7 +498,8 @@ class OverlayApp:
 
         if state.playing:
             self.status_var.set(
-                f"▶  PLAYING  ({state.play_current}/{state.play_times})"
+                f"▶  PLAYING  ({state.play_current}"
+                f"/{settings.format_times(state.play_times)})"
             )
             self.status_lbl.config(fg="#44cc44")
             self._set_click_through(True)

@@ -91,6 +91,46 @@ def test_float_repetition_is_truncated(patched_state):
     assert patched_state.play_times == 4
 
 
+# ── Répétitions : mode infini ────────────────────────────────────────────────
+
+def test_infinite_repetition_survives_a_roundtrip(patched_state):
+    patched_state.play_times = settings.INFINITE
+    settings.save()
+    patched_state.play_times = 7
+    settings.load()
+    assert patched_state.play_times == settings.INFINITE
+
+
+def test_negative_repetition_never_becomes_infinite(patched_state):
+    """Ramener −5 dans l'intervalle donnerait 0, donc une boucle sans fin."""
+    _write({"play_times": -5})
+    settings.load()
+    assert patched_state.play_times == 1
+
+
+def test_format_times_shows_infinity_symbol():
+    assert settings.format_times(settings.INFINITE) == "∞"
+    assert settings.format_times(12) == "12"
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("200", 200), ("1", 1), ("  42  ", 42), ("007", 7),
+])
+def test_parse_times_accepts_positive_integers(text, expected):
+    assert settings.parse_times(text) == expected
+
+
+@pytest.mark.parametrize("text", ["", "   ", "0", "-3", "2.5", "abc", "1 2", None])
+def test_parse_times_rejects_anything_else(text):
+    assert settings.parse_times(text) is None
+
+
+def test_parse_times_clamps_to_the_maximum():
+    assert settings.parse_times("999999") == settings.MAX_TIMES
+
+
+# ── Robustesse (suite) ───────────────────────────────────────────────────────
+
 def test_non_boolean_flag_falls_back(patched_state):
     _write({"play_skip_moves": "oui"})
     settings.load()

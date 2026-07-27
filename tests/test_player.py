@@ -8,6 +8,7 @@ from pynput.keyboard import KeyCode
 from pynput.mouse import Button
 
 import player
+import settings
 
 SCREEN = {"x": 0, "y": 0, "w": 1920, "h": 1080, "monitors": 1}
 
@@ -128,6 +129,45 @@ def test_play_loop_repeats_the_session(fresh_state, fake_devices):
     assert m.calls.count(("press", Button.left)) == 3
     assert fresh_state.playing is False
     assert fresh_state.play_current == 0
+
+
+def test_play_loop_repeats_until_stopped_when_infinite(fresh_state, fake_devices, monkeypatch):
+    """`play_times = INFINITE` ne s'arrête que sur demande d'arrêt."""
+    passes = []
+    real_dispatch = player._dispatch
+
+    def counting(event, *args):
+        passes.append(fresh_state.play_current)
+        if len(passes) == 5:
+            fresh_state.stop_play.set()
+        real_dispatch(event, *args)
+
+    monkeypatch.setattr(player, "_dispatch", counting)
+    fresh_state.events = _instant([{"type": "move", "x": 1, "y": 1}])
+    fresh_state.play_times = settings.INFINITE
+    fresh_state.play_delay = 0.0
+
+    player.play_loop()
+
+    assert passes == [1, 2, 3, 4, 5]
+
+
+def test_play_loop_ignores_repetitions_changed_mid_run(fresh_state, fake_devices, monkeypatch):
+    """Le compte de passes est relevé au départ, pas relu à chaque tour."""
+    passes = []
+
+    def bump(event, *args):
+        passes.append(fresh_state.play_current)
+        fresh_state.play_times = 99  # l'utilisateur touche au réglage en cours
+
+    monkeypatch.setattr(player, "_dispatch", bump)
+    fresh_state.events = _instant([{"type": "move", "x": 1, "y": 1}])
+    fresh_state.play_times = 2
+    fresh_state.play_delay = 0.0
+
+    player.play_loop()
+
+    assert passes == [1, 2]
 
 
 def test_play_loop_releases_a_key_left_pressed_by_the_session(fresh_state, fake_devices):
