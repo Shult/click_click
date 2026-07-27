@@ -19,6 +19,16 @@ class State:
         self.play_skip_moves: bool       = False
         self.play_current: int           = 0
 
+        # File d'enchaînement : noms de sessions à jouer à la suite, dans cet
+        # ordre. Garnie, elle prend le pas sur la session chargée. Les doublons
+        # sont permis : rejouer deux fois la même session dans une routine est
+        # une demande légitime.
+        self.playlist: list              = []
+        # Où en est l'enchaînement, pour l'affichage seulement.
+        self.play_session: Optional[str] = None
+        self.play_step: int              = 0
+        self.play_steps: int             = 0
+
         # Préférences d'interface, relues au démarrage (voir settings.py).
         self.sort_by_date: bool          = True
         self.window_pos: Optional[tuple] = None

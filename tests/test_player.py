@@ -4,10 +4,11 @@ import threading
 import time
 
 import pytest
-from pynput.keyboard import KeyCode
+from pynput.keyboard import Key, KeyCode
 from pynput.mouse import Button
 
 import player
+import sessions
 import settings
 
 SCREEN = {"x": 0, "y": 0, "w": 1920, "h": 1080, "monitors": 1}
@@ -304,6 +305,157 @@ def test_play_loop_ignores_a_speed_changed_mid_run(fresh_state, fake_devices,
 
     origin = recorded_waits[0]
     assert round(recorded_waits[-1] - origin, 6) == 1.0
+
+
+# ── File d'enchaînement ──────────────────────────────────────────────────────
+
+def _save(name, x):
+    sessions.save_session(name, [{"type": "move", "x": x, "y": x, "t": 0.0}])
+
+
+def test_can_play_accepts_a_playlist_without_a_loaded_session(fresh_state):
+    assert player.can_play() is False
+    fresh_state.playlist = ["a"]
+    assert player.can_play() is True
+
+
+def test_can_play_accepts_a_loaded_session_without_a_playlist(fresh_state):
+    fresh_state.events = [{"type": "move", "x": 1, "y": 1, "t": 0.0}]
+    assert player.can_play() is True
+
+
+def test_sequence_falls_back_to_the_loaded_session(fresh_state):
+    fresh_state.events = [{"type": "move", "x": 9, "y": 9, "t": 0.0}]
+    fresh_state.active_session = "chargée"
+    assert player.sequence() == [("chargée", fresh_state.events)]
+
+
+def test_sequence_reads_the_playlist_in_order(fresh_state):
+    _save("a", 1)
+    _save("b", 2)
+    fresh_state.playlist = ["b", "a"]
+
+    assert [name for name, _ in player.sequence()] == ["b", "a"]
+
+
+def test_sequence_skips_a_missing_session(fresh_state):
+    _save("a", 1)
+    fresh_state.playlist = ["fantôme", "a"]
+
+    assert [name for name, _ in player.sequence()] == ["a"]
+
+
+def test_sequence_applies_skip_moves_to_every_queued_session(fresh_state):
+    sessions.save_session("a", [
+        {"type": "move", "x": 1, "y": 1, "t": 0.0},
+        {"type": "click", "x": 1, "y": 1, "button": "left", "pressed": True, "t": 0.1},
+    ])
+    fresh_state.playlist = ["a", "a"]
+    fresh_state.play_skip_moves = True
+
+    typed = [[e["type"] for e in evts] for _, evts in player.sequence()]
+    assert typed == [["click"], ["click"]]
+
+
+def test_play_loop_chains_the_queued_sessions_in_order(fresh_state, fake_devices, monkeypatch):
+    seen = []
+    monkeypatch.setattr(player, "_dispatch", lambda e, *a: seen.append(e["x"]))
+    _save("a", 1)
+    _save("b", 2)
+    fresh_state.playlist = ["b", "a"]
+    fresh_state.play_delay = 0.0
+
+    player.play_loop()
+
+    assert seen == [2, 1]
+
+
+def test_play_loop_repeats_the_whole_chain(fresh_state, fake_devices, monkeypatch):
+    seen = []
+    monkeypatch.setattr(player, "_dispatch", lambda e, *a: seen.append(e["x"]))
+    _save("a", 1)
+    _save("b", 2)
+    fresh_state.playlist = ["a", "b"]
+    fresh_state.play_times = 2
+    fresh_state.play_delay = 0.0
+
+    player.play_loop()
+
+    assert seen == [1, 2, 1, 2]
+
+
+def test_play_loop_ignores_the_loaded_session_when_the_queue_is_garnished(
+        fresh_state, fake_devices, monkeypatch):
+    seen = []
+    monkeypatch.setattr(player, "_dispatch", lambda e, *a: seen.append(e["x"]))
+    _save("a", 1)
+    fresh_state.events = [{"type": "move", "x": 99, "y": 99, "t": 0.0}]
+    fresh_state.playlist = ["a"]
+    fresh_state.play_delay = 0.0
+
+    player.play_loop()
+
+    assert seen == [1]
+
+
+def test_play_loop_releases_the_keys_between_two_chained_sessions(fresh_state, fake_devices):
+    """Une session déséquilibrée ne doit pas bloquer Ctrl sur toute la file."""
+    _, kb = fake_devices
+    sessions.save_session("bloquante", [
+        {"type": "key", "key_type": "special", "key": "ctrl_l",
+         "pressed": True, "t": 0.0},
+    ])
+    _save("suivante", 5)
+    fresh_state.playlist = ["bloquante", "suivante"]
+    fresh_state.play_delay = 0.0
+
+    player.play_loop()
+
+    assert kb.calls == [("press", Key.ctrl_l), ("release", Key.ctrl_l)]
+
+
+def test_play_loop_does_nothing_when_every_queued_session_is_missing(
+        fresh_state, fake_devices):
+    m, _ = fake_devices
+    fresh_state.playlist = ["fantôme", "aussi fantôme"]
+
+    player.play_loop()
+
+    assert m.calls == []
+    assert fresh_state.playing is False
+
+
+def test_play_loop_reports_the_current_step_then_clears_it(fresh_state, fake_devices, monkeypatch):
+    seen = []
+
+    def note(event, *args):
+        seen.append((fresh_state.play_session, fresh_state.play_step,
+                     fresh_state.play_steps))
+
+    monkeypatch.setattr(player, "_dispatch", note)
+    _save("a", 1)
+    _save("b", 2)
+    fresh_state.playlist = ["a", "b"]
+    fresh_state.play_delay = 0.0
+
+    player.play_loop()
+
+    assert seen == [("a", 1, 2), ("b", 2, 2)]
+    assert (fresh_state.play_session, fresh_state.play_step,
+            fresh_state.play_steps) == (None, 0, 0)
+
+
+def test_play_loop_pauses_between_two_chained_sessions(fresh_state, fake_devices):
+    """Le délai réglé sert aussi de respiration entre deux sessions."""
+    _save("a", 1)
+    _save("b", 2)
+    fresh_state.playlist = ["a", "b"]
+    fresh_state.play_delay = 0.2
+
+    started = time.perf_counter()
+    player.play_loop()
+
+    assert time.perf_counter() - started >= 0.2
 
 
 def test_wait_until_returns_immediately_when_stopped(fresh_state):

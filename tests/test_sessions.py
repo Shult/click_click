@@ -281,6 +281,16 @@ def test_rename_to_the_same_name_is_a_no_op():
     assert sessions.list_sessions() == ["run"]
 
 
+def test_rename_follows_every_occurrence_in_the_playlist(fresh_state):
+    """La file désigne les sessions par leur nom : un renommage la casserait."""
+    sessions.save_session("run", [])
+    fresh_state.playlist = ["intro", "run", "sortie", "run"]
+
+    sessions.rename_session("run", "course")
+
+    assert fresh_state.playlist == ["intro", "course", "sortie", "course"]
+
+
 def test_rename_reports_a_missing_session():
     with pytest.raises(SessionError, match="introuvable"):
         sessions.rename_session("fantôme", "run")
@@ -312,6 +322,26 @@ def test_delete_leaves_another_active_session_alone(fresh_state):
     fresh_state.active_session = "b"
     sessions.delete_session("a")
     assert fresh_state.active_session == "b"
+
+
+def test_delete_removes_every_occurrence_from_the_playlist(fresh_state):
+    sessions.save_session("run", [])
+    fresh_state.playlist = ["run", "autre", "run"]
+
+    sessions.delete_session("run")
+
+    assert fresh_state.playlist == ["autre"]
+
+
+def test_delete_keeps_the_playlist_object_alive(fresh_state):
+    """La liste est mutée sur place : l'interface en garde la référence."""
+    sessions.save_session("run", [])
+    queue = fresh_state.playlist
+    queue.append("run")
+
+    sessions.delete_session("run")
+
+    assert queue is fresh_state.playlist and queue == []
 
 
 def test_delete_reports_a_missing_session():

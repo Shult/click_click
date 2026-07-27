@@ -204,6 +204,64 @@ def test_format_speed_drops_useless_decimals():
     assert settings.format_speed(1.5) == "1.5×"
 
 
+# ── File d'enchaînement ──────────────────────────────────────────────────────
+
+def test_playlist_survives_a_roundtrip(patched_state):
+    patched_state.playlist = ["intro", "boucle", "sortie"]
+    settings.save()
+    patched_state.playlist = []
+    settings.load()
+    assert patched_state.playlist == ["intro", "boucle", "sortie"]
+
+
+def test_playlist_keeps_duplicates(patched_state):
+    """Rejouer deux fois la même session dans un enchaînement est légitime."""
+    _write({"playlist": ["a", "b", "a"]})
+    settings.load()
+    assert patched_state.playlist == ["a", "b", "a"]
+
+
+def test_missing_playlist_is_empty(patched_state):
+    _write({"play_delay": 1.0})
+    settings.load()
+    assert patched_state.playlist == []
+
+
+@pytest.mark.parametrize("value", ["a,b", {"a": 1}, 3, None])
+def test_playlist_of_the_wrong_type_is_ignored(patched_state, value):
+    _write({"playlist": value})
+    settings.load()
+    assert patched_state.playlist == []
+
+
+def test_playlist_drops_entries_that_are_not_names(patched_state):
+    _write({"playlist": ["bon", 42, None, ["a"], "aussi bon"]})
+    settings.load()
+    assert patched_state.playlist == ["bon", "aussi bon"]
+
+
+def test_playlist_rejects_a_name_that_escapes_the_sessions_folder(patched_state):
+    """Un fichier trafiqué ne doit pas faire lire ailleurs sur le disque."""
+    _write({"playlist": ["../../ailleurs", "propre"]})
+    settings.load()
+    assert patched_state.playlist == ["propre"]
+
+
+def test_playlist_is_capped(patched_state):
+    _write({"playlist": [f"s{i}" for i in range(settings.MAX_PLAYLIST + 50)]})
+    settings.load()
+    assert len(patched_state.playlist) == settings.MAX_PLAYLIST
+
+
+def test_saved_playlist_is_a_copy(patched_state):
+    """Le payload ne doit pas partager la liste vivante de l'état."""
+    patched_state.playlist = ["a"]
+    settings.save()
+    patched_state.playlist.append("b")
+    settings.load()
+    assert patched_state.playlist == ["a"]
+
+
 # ── Robustesse (suite) ───────────────────────────────────────────────────────
 
 def test_non_boolean_flag_falls_back(patched_state):

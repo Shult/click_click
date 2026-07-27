@@ -18,7 +18,7 @@ Pendant la **lecture**, l'overlay devient transparent et les clics passent au tr
 |--------|-----------|--------|
 | ⏺ | **F8** | Démarrer l'enregistrement |
 | ⏹ | **F9** | Arrêter et sauvegarder |
-| ▶ | **F10** | Lancer la lecture |
+| ▶ | **F10** | Lancer la lecture (la session chargée, ou la file d'enchaînement) |
 | — | **Échap** | Stopper la lecture |
 | — | **F12** | Quitter |
 
@@ -39,6 +39,18 @@ Un **clic** désigne une session, un **double-clic** la charge. Les quatre bouto
 
 La session active apparaît en vert. Si tu la renommes, elle reste active sous son nouveau nom ; si tu la supprimes, l'en-tête revient à `—` mais les évènements déjà chargés restent en mémoire — une lecture en cours n'est pas interrompue et F10 fonctionne toujours.
 
+### File d'enchaînement
+
+Pour jouer plusieurs sessions à la suite, ajoute-les à la **file** en bas du panneau Sessions. `＋ Ajouter la session sélectionnée` l'empile à la fin ; `↑` `↓` la déplacent, `Retirer` l'enlève, `Vider` remet la file à zéro (avec confirmation). Une même session peut y figurer plusieurs fois.
+
+**Dès que la file contient une entrée, elle prend le pas sur la session chargée** : F10 joue la file, dans l'ordre, et l'en-tête de l'overlay affiche `⛓ file : N session(s)` pour que ce soit visible sans ouvrir le panneau. Pour rejouer une session seule, vide la file.
+
+Pendant la lecture, l'en-tête indique la session en cours et sa position : `alma 03 (2/14)`. Les répétitions s'appliquent à **l'enchaînement entier** : 3 répétitions d'une file de 4 sessions, c'est douze lectures. Le délai sert de pause entre deux sessions comme entre deux passes.
+
+La file est **conservée** dans `settings.json` sous forme de liste de noms, et suit les renommages et les suppressions faites depuis l'application. Une entrée dont le fichier a disparu autrement (effacé depuis l'explorateur) apparaît **en rouge** dans la liste et est simplement sautée à la lecture — le reste de l'enchaînement se joue quand même.
+
+Chaque session rend la souris et le clavier avant la suivante : une session mal équilibrée ne peut pas laisser une touche enfoncée pour tout le reste de la file.
+
 ### Réglages
 
 | Paramètre | Description |
@@ -54,7 +66,7 @@ La vitesse divise les horodatages enregistrés : à 2× une session de 30 s en p
 
 En mode infini, le statut affiche la passe en cours sur `∞` — `▶ PLAYING (37/∞)`. Une saisie qui n'est pas un entier ≥ 1 est refusée sans rien changer. Le nombre de passes est figé au lancement de la lecture : modifier le réglage en cours de route n'affecte que la lecture suivante.
 
-Ces réglages, le tri de la liste des sessions et la position de l'overlay sont **conservés d'un lancement à l'autre** (`settings.json`). Un fichier absent, illisible ou incohérent est ignoré sans bruit : l'application repart sur ses valeurs par défaut.
+Ces réglages, la file d'enchaînement, le tri de la liste des sessions et la position de l'overlay sont **conservés d'un lancement à l'autre** (`settings.json`). Un fichier absent, illisible ou incohérent est ignoré sans bruit : l'application repart sur ses valeurs par défaut, clé par clé — un `settings.json` écrit par une version antérieure se charge donc sans rien perdre du reste.
 
 ## Ce qui est enregistré
 
@@ -73,7 +85,7 @@ Tout est stocké **à côté de l'exécutable** (ou du dossier source en dévelo
 ```
 ClickClick.exe
 sessions/          ← une session par fichier .json
-settings.json      ← réglages de lecture, tri, position de la fenêtre
+settings.json      ← réglages de lecture, file d'enchaînement, tri, position
 clickclick.log     ← journal, rotatif (4 × 1 Mo)
 ```
 

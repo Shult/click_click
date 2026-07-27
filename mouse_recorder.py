@@ -23,6 +23,7 @@ from pynput import keyboard, mouse  # noqa: E402
 from pynput.keyboard import Key  # noqa: E402
 
 import paths  # noqa: E402
+import player  # noqa: E402
 import recorder  # noqa: E402
 import settings  # noqa: E402
 from overlay import OverlayApp  # noqa: E402
@@ -53,7 +54,9 @@ def on_key_press(key):
         state.ui_queue.put(lambda app: app.show_save_dialog(duration))
 
     elif key == Key.f10:
-        if state.playing or state.recording or not state.events:
+        # Une file d'enchaînement garnie suffit : aucune session n'a besoin
+        # d'être chargée en mémoire pour la jouer.
+        if state.playing or state.recording or not player.can_play():
             return
         state.playing = True
         state.stop_play.clear()

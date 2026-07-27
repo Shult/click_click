@@ -238,6 +238,10 @@ def rename_session(old: str, new: str) -> str:
 
     if state.active_session == old:
         state.active_session = name
+    # La file d'enchaînement désigne des sessions par leur nom : sans ce suivi,
+    # un renommage la casserait silencieusement. C'est à l'appelant de la
+    # persister — ce module ignore tout des préférences.
+    state.playlist[:] = [name if n == old else n for n in state.playlist]
     log.info("session « %s » renommée en « %s »", old, name)
     return name
 
@@ -256,6 +260,9 @@ def delete_session(name: str) -> None:
         # cours de lecture, et c'est l'état normal juste après un
         # enregistrement non sauvegardé.
         state.active_session = None
+    # Une entrée de file qui ne pointe plus sur rien ne serait qu'un piège :
+    # elle serait sautée à la lecture sans que personne comprenne pourquoi.
+    state.playlist[:] = [n for n in state.playlist if n != name]
     log.info("session « %s » supprimée", name)
 
 

@@ -14,6 +14,7 @@ import logging
 import os
 
 import paths
+import sessions
 from state import state
 
 log = logging.getLogger(__name__)
@@ -27,6 +28,10 @@ MAX_DELAY = 3600.0
 # d'une minute en prend quatre ; au-delà de 4× l'application visée ne suit plus.
 SPEEDS = (0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0)
 MIN_SPEED, MAX_SPEED = SPEEDS[0], SPEEDS[-1]
+
+# Longueur maximale de la file d'enchaînement. Aucune raison technique : c'est
+# une borne pour qu'un fichier absurde ne fasse pas ramer l'interface.
+MAX_PLAYLIST = 100
 
 # Répétitions : « joue jusqu'à Échap ». Zéro plutôt qu'un sentinelle négative
 # ou None, pour rester un entier sérialisable tel quel dans settings.json.
@@ -84,6 +89,26 @@ def _as_speed(value) -> float:
         return round(max(MIN_SPEED, min(MAX_SPEED, float(value))), 2)
     except (TypeError, ValueError):
         return 1.0
+
+
+def _as_playlist(value) -> list:
+    """File d'enchaînement : une liste de noms de sessions.
+
+    Chaque nom repasse par `sanitize_name`. Il finira en chemin de fichier, et
+    un settings.json trafiqué — « ../../ailleurs » — ne doit pas pouvoir faire
+    lire hors du dossier des sessions.
+    """
+    if not isinstance(value, list):
+        return []
+    out = []
+    for item in value[:MAX_PLAYLIST]:
+        if not isinstance(item, str):
+            continue
+        try:
+            out.append(sessions.sanitize_name(item))
+        except sessions.SessionError:
+            log.warning("nom écarté de la file d'enchaînement : %r", item)
+    return out
 
 
 def _as_pos(value):
@@ -152,6 +177,7 @@ def load() -> None:
     state.play_delay = _as_float(raw.get("play_delay"), 1.0, 0.0, MAX_DELAY)
     state.play_speed = _as_speed(raw.get("play_speed"))
     state.play_skip_moves = _as_bool(raw.get("play_skip_moves"), False)
+    state.playlist = _as_playlist(raw.get("playlist"))
     state.sort_by_date = _as_bool(raw.get("sort_by_date"), True)
     state.window_pos = _as_pos(raw.get("window_pos"))
 
@@ -160,8 +186,9 @@ def load() -> None:
     times = "infini" if state.play_times == INFINITE else str(state.play_times)
     log.info(
         "préférences chargées : %s répétition(s), %.1fs de délai, "
-        "vitesse %gx, skip_moves=%s",
+        "vitesse %gx, skip_moves=%s, file de %d session(s)",
         times, state.play_delay, state.play_speed, state.play_skip_moves,
+        len(state.playlist),
     )
 
 
@@ -172,6 +199,7 @@ def save() -> None:
         "play_delay": state.play_delay,
         "play_speed": state.play_speed,
         "play_skip_moves": state.play_skip_moves,
+        "playlist": list(state.playlist),
         "sort_by_date": state.sort_by_date,
         "window_pos": list(state.window_pos) if state.window_pos else None,
     }

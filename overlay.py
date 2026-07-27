@@ -310,13 +310,127 @@ class OverlayApp:
                            ("Renommer", self._act_rename),
                            ("Dupliquer", self._act_duplicate),
                            ("Supprimer", self._act_delete)):
-            tk.Button(acts, text=label, bg="#242424", fg="#777777",
-                      font=("Segoe UI", 7), bd=0, relief="flat",
-                      activebackground="#303030", activeforeground="white",
-                      cursor="hand2", pady=3, command=cmd,
-                      ).pack(side="left", expand=True, fill="x", padx=1)
+            self._tiny_btn(acts, label, cmd).pack(side="left", expand=True,
+                                                  fill="x", padx=1)
 
+        self._build_queue(f)
         self._fill_sessions()
+        self._fill_queue()
+
+    def _tiny_btn(self, parent, text, cmd):
+        return tk.Button(parent, text=text, bg="#242424", fg="#777777",
+                         font=("Segoe UI", 7), bd=0, relief="flat",
+                         activebackground="#303030", activeforeground="white",
+                         cursor="hand2", pady=3, command=cmd)
+
+    # ── File d'enchaînement ──────────────────────────────────────────────────
+
+    def _build_queue(self, f):
+        tk.Frame(f, bg="#2a2a2a", height=1).pack(fill="x")
+        tk.Label(f, text="⛓ File d'enchaînement", bg=self.BG2, fg="#555555",
+                 font=("Segoe UI", 7)).pack(anchor="w", padx=8, pady=(3, 1))
+
+        body = tk.Frame(f, bg=self.BG2)
+        body.pack(fill="x", padx=8)
+
+        bar = tk.Scrollbar(body, width=self.px(9), bd=0, relief="flat",
+                           troughcolor="#1b1b1b", bg="#333333",
+                           activebackground="#454545", highlightthickness=0)
+        bar.pack(side="right", fill="y")
+
+        self.queue_list = tk.Listbox(
+            body, height=4, bg=self.BG2, fg="#888888", bd=0,
+            font=("Segoe UI", 8), activestyle="none", selectborderwidth=0,
+            selectbackground="#2f3f2f", selectforeground="white",
+            highlightthickness=0, exportselection=False, yscrollcommand=bar.set,
+        )
+        self.queue_list.pack(side="left", fill="both", expand=True)
+        bar.config(command=self.queue_list.yview)
+
+        self._tiny_btn(f, "＋ Ajouter la session sélectionnée",
+                       self._queue_add).pack(fill="x", padx=8, pady=(2, 0))
+
+        qacts = tk.Frame(f, bg=self.BG2)
+        qacts.pack(fill="x", padx=8, pady=(1, 6))
+        for label, cmd in (("↑", lambda: self._queue_move(-1)),
+                           ("↓", lambda: self._queue_move(1)),
+                           ("Retirer", self._queue_remove),
+                           ("Vider", self._queue_clear)):
+            self._tiny_btn(qacts, label, cmd).pack(side="left", expand=True,
+                                                   fill="x", padx=1)
+
+    def _fill_queue(self, select: int | None = None):
+        if not self.queue_list.winfo_exists():
+            return
+        self.queue_list.delete(0, "end")
+        for i, name in enumerate(state.playlist):
+            self.queue_list.insert("end", f"{i + 1}. {name}")
+            # Un fichier disparu hors de l'application serait sauté sans que
+            # personne comprenne pourquoi : autant le signaler tout de suite.
+            if not sessions.session_path(name).exists():
+                self.queue_list.itemconfig(i, foreground="#cc5555")
+
+        if select is not None and 0 <= select < len(state.playlist):
+            self.queue_list.selection_set(select)
+            self.queue_list.see(select)
+
+    def _queue_index(self) -> int | None:
+        selection = self.queue_list.curselection()
+        if not selection:
+            self._sess_msg("Sélectionne d'abord une entrée de la file",
+                           error=True)
+            return None
+        return selection[0]
+
+    def _queue_add(self):
+        name = self._selected_session()
+        if not name:
+            return
+        if len(state.playlist) >= settings.MAX_PLAYLIST:
+            self._sess_msg(f"File pleine ({settings.MAX_PLAYLIST})", error=True)
+            return
+        state.playlist.append(name)
+        settings.save()
+        self._fill_queue(select=len(state.playlist) - 1)
+        self._sess_msg(f"« {name} » ajoutée en position {len(state.playlist)}")
+
+    def _queue_move(self, delta: int):
+        index = self._queue_index()
+        if index is None:
+            return
+        target = index + delta
+        if not 0 <= target < len(state.playlist):
+            return
+        queue = state.playlist
+        queue[index], queue[target] = queue[target], queue[index]
+        settings.save()
+        self._fill_queue(select=target)
+
+    def _queue_remove(self):
+        index = self._queue_index()
+        if index is None:
+            return
+        name = state.playlist.pop(index)
+        settings.save()
+        self._fill_queue(select=min(index, len(state.playlist) - 1))
+        self._sess_msg(f"« {name} » retirée de la file")
+
+    def _queue_clear(self):
+        if not state.playlist:
+            return
+        self._ask_confirm(
+            "Vider la file",
+            f"Retirer les {len(state.playlist)} entrées de la file ?\n"
+            "Les sessions elles-mêmes ne sont pas touchées.",
+            "Vider",
+            self._do_clear_queue,
+        )
+
+    def _do_clear_queue(self):
+        state.playlist.clear()
+        settings.save()
+        self._fill_queue()
+        self._sess_msg("File vidée")
 
     def _sort_label(self) -> str:
         return "Tri : date" if state.sort_by_date else "Tri : A-Z"
@@ -383,7 +497,11 @@ class OverlayApp:
 
         def do(raw: str):
             new = sessions.rename_session(name, raw)
+            # `sessions` ne connaît pas les préférences : c'est ici que la file
+            # mise à jour est écrite sur disque.
+            settings.save()
             self._fill_sessions(select=new)
+            self._fill_queue()
 
         self._ask_name("Renommer la session", name, do)
 
@@ -417,7 +535,9 @@ class OverlayApp:
 
     def _do_delete(self, name: str):
         sessions.delete_session(name)
+        settings.save()  # la session a pu disparaître de la file
         self._fill_sessions()
+        self._fill_queue()
         self._sess_msg(f"« {name} » supprimée")
 
     # ── Panel toggles ────────────────────────────────────────────────────────
@@ -776,7 +896,19 @@ class OverlayApp:
             self._set_click_through(False)
 
         name = state.active_session or "—"
-        if state.active_session and state.screen_mismatch:
+        if state.playing and state.play_steps > 1:
+            # Pendant un enchaînement, la session chargée n'est pas celle qui
+            # joue : afficher où on en est est plus utile que son nom.
+            self.session_var.set(
+                f"{state.play_session}  ({state.play_step}/{state.play_steps})"
+            )
+            self.session_lbl.config(fg="#44cc44")
+        elif state.playlist and not state.playing:
+            # La file prend le pas sur la session chargée : il faut que ça se
+            # voie sans ouvrir un panneau, sinon F10 devient imprévisible.
+            self.session_var.set(f"⛓ file : {len(state.playlist)} session(s)")
+            self.session_lbl.config(fg="#4488aa")
+        elif state.active_session and state.screen_mismatch:
             self.session_var.set(f"⚠ {name}  (écran différent)")
             self.session_lbl.config(fg="#cc8844")
         else:
