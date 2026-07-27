@@ -15,6 +15,7 @@ class State:
         self.active_session: Optional[str] = None
         self.play_times: int             = 1
         self.play_delay: float           = 1.0
+        self.play_speed: float           = 1.0
         self.play_skip_moves: bool       = False
         self.play_current: int           = 0
 

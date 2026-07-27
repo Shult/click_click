@@ -23,6 +23,11 @@ FILENAME = "settings.json"
 MAX_TIMES = 9999
 MAX_DELAY = 3600.0
 
+# Paliers de vitesse proposés par l'interface. En dessous de 0,25× une session
+# d'une minute en prend quatre ; au-delà de 4× l'application visée ne suit plus.
+SPEEDS = (0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0)
+MIN_SPEED, MAX_SPEED = SPEEDS[0], SPEEDS[-1]
+
 # Répétitions : « joue jusqu'à Échap ». Zéro plutôt qu'un sentinelle négative
 # ou None, pour rester un entier sérialisable tel quel dans settings.json.
 INFINITE = 0
@@ -68,6 +73,19 @@ def _as_times(value) -> int:
     return min(MAX_TIMES, n) if n > 0 else 1
 
 
+def _as_speed(value) -> float:
+    """Vitesse de lecture, bornée aux extrêmes de `SPEEDS`.
+
+    Deux décimales : `_as_float` arrondit au dixième et écraserait 0,25× en
+    0,2×. Une valeur hors palier est conservée telle quelle — un settings.json
+    retouché à la main reste jouable.
+    """
+    try:
+        return round(max(MIN_SPEED, min(MAX_SPEED, float(value))), 2)
+    except (TypeError, ValueError):
+        return 1.0
+
+
 def _as_pos(value):
     """Attend `[x, y]`. Toute autre forme vaut « pas de position mémorisée »."""
     if (isinstance(value, (list, tuple)) and len(value) == 2
@@ -96,6 +114,23 @@ def format_times(n: int) -> str:
     return "∞" if n == INFINITE else str(n)
 
 
+def step_speed(current: float, up: bool) -> float:
+    """Palier de vitesse suivant ou précédent.
+
+    Une valeur hors palier rejoint le premier palier dans la direction
+    demandée, sans jamais sauter par-dessus.
+    """
+    if up:
+        higher = [s for s in SPEEDS if s > current + 1e-9]
+        return higher[0] if higher else MAX_SPEED
+    lower = [s for s in SPEEDS if s < current - 1e-9]
+    return lower[-1] if lower else MIN_SPEED
+
+
+def format_speed(v: float) -> str:
+    return f"{v:g}×"
+
+
 # ── Entrées / sorties ────────────────────────────────────────────────────────
 
 def load() -> None:
@@ -115,6 +150,7 @@ def load() -> None:
 
     state.play_times = _as_times(raw.get("play_times"))
     state.play_delay = _as_float(raw.get("play_delay"), 1.0, 0.0, MAX_DELAY)
+    state.play_speed = _as_speed(raw.get("play_speed"))
     state.play_skip_moves = _as_bool(raw.get("play_skip_moves"), False)
     state.sort_by_date = _as_bool(raw.get("sort_by_date"), True)
     state.window_pos = _as_pos(raw.get("window_pos"))
@@ -123,8 +159,9 @@ def load() -> None:
     # sous Windows, où « ∞ » lève une UnicodeEncodeError.
     times = "infini" if state.play_times == INFINITE else str(state.play_times)
     log.info(
-        "préférences chargées : %s répétition(s), %.1fs de délai, skip_moves=%s",
-        times, state.play_delay, state.play_skip_moves,
+        "préférences chargées : %s répétition(s), %.1fs de délai, "
+        "vitesse %gx, skip_moves=%s",
+        times, state.play_delay, state.play_speed, state.play_skip_moves,
     )
 
 
@@ -133,6 +170,7 @@ def save() -> None:
     payload = {
         "play_times": state.play_times,
         "play_delay": state.play_delay,
+        "play_speed": state.play_speed,
         "play_skip_moves": state.play_skip_moves,
         "sort_by_date": state.sort_by_date,
         "window_pos": list(state.window_pos) if state.window_pos else None,

@@ -103,9 +103,12 @@ def play_loop():
         if state.play_skip_moves else state.events
     )
 
-    # Relevé une seule fois : régler les répétitions pendant une lecture ne doit
-    # pas changer le nombre de passes en cours de route.
+    # Relevés une seule fois : toucher aux réglages pendant une lecture ne doit
+    # pas changer le nombre de passes ni le tempo en cours de route.
     times = state.play_times
+    # Une vitesse nulle diviserait par zéro et tuerait la passe ; les réglages
+    # ne peuvent pas la produire, mais un settings.json retouché à la main si.
+    speed = state.play_speed if state.play_speed > 0 else 1.0
     i = 0
 
     try:
@@ -117,12 +120,14 @@ def play_loop():
 
                 # Horloge absolue calée sur le début de la passe. En attendant
                 # des deltas successifs, les erreurs d'arrondi s'accumulent et
-                # une longue session dérive de plusieurs secondes.
+                # une longue session dérive de plusieurs secondes. La vitesse
+                # divise l'horodatage d'origine, elle ne se cumule donc pas non
+                # plus d'un évènement au suivant.
                 t0 = time.perf_counter()
                 interrupted = False
 
                 for event in evts:
-                    if _wait_until(t0 + event["t"]):
+                    if _wait_until(t0 + event["t"] / speed):
                         interrupted = True
                         break
                     _dispatch(event, m, kb, held_keys, held_buttons, vs)

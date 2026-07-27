@@ -22,19 +22,21 @@ def _write(payload):
 def test_roundtrip(patched_state):
     patched_state.play_times = 13
     patched_state.play_delay = 3.0
+    patched_state.play_speed = 2.0
     patched_state.play_skip_moves = True
     patched_state.sort_by_date = False
     patched_state.window_pos = (1670, 20)
     settings.save()
 
     for attr, other in (("play_times", 1), ("play_delay", 1.0),
-                        ("play_skip_moves", False), ("sort_by_date", True),
-                        ("window_pos", None)):
+                        ("play_speed", 1.0), ("play_skip_moves", False),
+                        ("sort_by_date", True), ("window_pos", None)):
         setattr(patched_state, attr, other)
     settings.load()
 
     assert patched_state.play_times == 13
     assert patched_state.play_delay == 3.0
+    assert patched_state.play_speed == 2.0
     assert patched_state.play_skip_moves is True
     assert patched_state.sort_by_date is False
     assert patched_state.window_pos == (1670, 20)
@@ -127,6 +129,79 @@ def test_parse_times_rejects_anything_else(text):
 
 def test_parse_times_clamps_to_the_maximum():
     assert settings.parse_times("999999") == settings.MAX_TIMES
+
+
+# ── Vitesse de lecture ───────────────────────────────────────────────────────
+
+def test_speed_survives_a_roundtrip(patched_state):
+    patched_state.play_speed = 0.25
+    settings.save()
+    patched_state.play_speed = 1.0
+    settings.load()
+    assert patched_state.play_speed == 0.25
+
+
+def test_missing_speed_falls_back_to_normal(patched_state):
+    _write({"play_delay": 2.0})
+    settings.load()
+    assert patched_state.play_speed == 1.0
+
+
+@pytest.mark.parametrize("value", ["vite", None, [], {"a": 1}])
+def test_unusable_speed_falls_back(patched_state, value):
+    _write({"play_speed": value})
+    settings.load()
+    assert patched_state.play_speed == 1.0
+
+
+def test_speed_is_clamped_to_its_range(patched_state):
+    _write({"play_speed": 0.01})
+    settings.load()
+    assert patched_state.play_speed == settings.MIN_SPEED
+
+    _write({"play_speed": 100})
+    settings.load()
+    assert patched_state.play_speed == settings.MAX_SPEED
+
+
+def test_quarter_speed_is_not_rounded_to_two_tenths(patched_state):
+    """Un arrondi au dixième écraserait 0,25× — le palier le plus lent."""
+    _write({"play_speed": 0.25})
+    settings.load()
+    assert patched_state.play_speed == 0.25
+
+
+def test_off_step_speed_is_kept(patched_state):
+    """Un settings.json retouché à la main reste jouable tel quel."""
+    _write({"play_speed": 1.2})
+    settings.load()
+    assert patched_state.play_speed == 1.2
+
+
+@pytest.mark.parametrize("current,up,expected", [
+    (1.0, True, 1.5),
+    (1.0, False, 0.75),
+    (0.25, False, 0.25),      # déjà au minimum
+    (4.0, True, 4.0),         # déjà au maximum
+    (1.2, True, 1.5),         # hors palier : le suivant, sans saut
+    (1.2, False, 1.0),
+])
+def test_step_speed_moves_one_step(current, up, expected):
+    assert settings.step_speed(current, up) == expected
+
+
+def test_every_step_is_reachable_from_the_minimum():
+    reached, value = [settings.MIN_SPEED], settings.MIN_SPEED
+    for _ in range(len(settings.SPEEDS)):
+        value = settings.step_speed(value, True)
+        reached.append(value)
+    assert sorted(set(reached)) == list(settings.SPEEDS)
+
+
+def test_format_speed_drops_useless_decimals():
+    assert settings.format_speed(1.0) == "1×"
+    assert settings.format_speed(0.25) == "0.25×"
+    assert settings.format_speed(1.5) == "1.5×"
 
 
 # ── Robustesse (suite) ───────────────────────────────────────────────────────

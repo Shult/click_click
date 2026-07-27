@@ -227,6 +227,85 @@ def test_play_loop_can_skip_moves(fresh_state, fake_devices):
     assert m.position == (1, 1)
 
 
+# ── Vitesse de lecture ───────────────────────────────────────────────────────
+
+@pytest.fixture
+def recorded_waits(monkeypatch):
+    """Relève les instants attendus au lieu de les attendre vraiment."""
+    targets = []
+
+    def fake_wait(target):
+        targets.append(target)
+        return False
+
+    monkeypatch.setattr(player, "_wait_until", fake_wait)
+    return targets
+
+
+def test_play_loop_divides_timestamps_by_the_speed(fresh_state, fake_devices, recorded_waits):
+    fresh_state.events = [
+        {"type": "move", "x": 1, "y": 1, "t": 0.0},
+        {"type": "move", "x": 2, "y": 2, "t": 1.0},
+        {"type": "move", "x": 3, "y": 3, "t": 3.0},
+    ]
+    fresh_state.play_speed = 2.0
+
+    player.play_loop()
+
+    origin = recorded_waits[0]
+    assert [round(t - origin, 6) for t in recorded_waits] == [0.0, 0.5, 1.5]
+
+
+def test_play_loop_stays_on_an_absolute_clock(fresh_state, fake_devices, recorded_waits):
+    """Chaque instant vaut t0 + t/vitesse : aucune dérive cumulée possible."""
+    fresh_state.events = [{"type": "move", "x": 1, "y": 1, "t": i * 0.1}
+                          for i in range(200)]
+    fresh_state.play_speed = 0.25
+
+    player.play_loop()
+
+    origin = recorded_waits[0]
+    expected = round(199 * 0.1 / 0.25, 6)
+    assert round(recorded_waits[-1] - origin, 6) == expected
+
+
+def test_play_loop_at_normal_speed_keeps_the_timestamps(fresh_state, fake_devices, recorded_waits):
+    fresh_state.events = [{"type": "move", "x": 1, "y": 1, "t": 0.0},
+                          {"type": "move", "x": 2, "y": 2, "t": 2.5}]
+
+    player.play_loop()
+
+    origin = recorded_waits[0]
+    assert [round(t - origin, 6) for t in recorded_waits] == [0.0, 2.5]
+
+
+def test_play_loop_survives_a_zero_speed(fresh_state, fake_devices, recorded_waits):
+    """Une vitesse nulle venue d'un fichier retouché ne doit pas diviser par 0."""
+    fresh_state.events = [{"type": "move", "x": 1, "y": 1, "t": 1.0}]
+    fresh_state.play_speed = 0.0
+
+    player.play_loop()
+
+    assert len(recorded_waits) == 1
+    assert fresh_state.playing is False
+
+
+def test_play_loop_ignores_a_speed_changed_mid_run(fresh_state, fake_devices,
+                                                   recorded_waits, monkeypatch):
+    def bump(event, *args):
+        fresh_state.play_speed = 4.0  # l'utilisateur touche au réglage en cours
+
+    monkeypatch.setattr(player, "_dispatch", bump)
+    fresh_state.events = [{"type": "move", "x": 1, "y": 1, "t": 0.0},
+                          {"type": "move", "x": 2, "y": 2, "t": 1.0}]
+    fresh_state.play_speed = 1.0
+
+    player.play_loop()
+
+    origin = recorded_waits[0]
+    assert round(recorded_waits[-1] - origin, 6) == 1.0
+
+
 def test_wait_until_returns_immediately_when_stopped(fresh_state):
     fresh_state.stop_play.set()
     started = time.perf_counter()

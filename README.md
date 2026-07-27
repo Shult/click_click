@@ -45,7 +45,12 @@ La session active apparaît en vert. Si tu la renommes, elle reste active sous s
 |-----------|-------------|
 | Répétitions | Nombre de fois que la session est jouée. **Clique sur le nombre** pour le taper directement (Entrée valide, Échap annule) ; **∞** rejoue jusqu'à Échap |
 | Délai (s) | Pause entre chaque passe |
+| Vitesse | Tempo de la lecture, de **0.25×** à **4×** par paliers (0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4) |
 | Skip moves | Ignore les déplacements souris à la lecture |
+
+La vitesse divise les horodatages enregistrés : à 2× une session de 30 s en prend 15. Elle ne s'applique **pas** au délai entre les passes, qui est une pause voulue et non du rythme enregistré. Comme les répétitions, elle est figée au lancement de la lecture.
+
+> Au-delà de 2×, l'application pilotée peut ne plus suivre : un menu qui met 200 ms à s'ouvrir ne s'ouvrira pas plus vite parce que le clic suivant arrive plus tôt. Une session qui échoue à 4× n'est pas forcément mal enregistrée.
 
 En mode infini, le statut affiche la passe en cours sur `∞` — `▶ PLAYING (37/∞)`. Une saisie qui n'est pas un entier ≥ 1 est refusée sans rien changer. Le nombre de passes est figé au lancement de la lecture : modifier le réglage en cours de route n'affecte que la lecture suivante.
 

@@ -223,6 +223,22 @@ class OverlayApp:
             return f2
         row("Délai (s)", delay_w)
 
+        self.speed_var = tk.StringVar(value=settings.format_speed(state.play_speed))
+
+        def speed_w(p):
+            f2 = tk.Frame(p, bg=self.BG2)
+            tk.Button(f2, text=" − ", bg="#2a2a2a", fg="white", bd=0,
+                      font=("Segoe UI", 9), activebackground="#3a3a3a",
+                      command=lambda: self._adj_speed(False)).pack(side="left")
+            tk.Label(f2, textvariable=self.speed_var, bg=self.BG2, fg="white",
+                     font=("Segoe UI", 9), width=5,
+                     anchor="center").pack(side="left")
+            tk.Button(f2, text=" + ", bg="#2a2a2a", fg="white", bd=0,
+                      font=("Segoe UI", 9), activebackground="#3a3a3a",
+                      command=lambda: self._adj_speed(True)).pack(side="left")
+            return f2
+        row("Vitesse", speed_w)
+
         self.skip_var = tk.BooleanVar(value=state.play_skip_moves)
 
         def skip_w(p):
@@ -511,6 +527,11 @@ class OverlayApp:
                 max(0.0, min(settings.MAX_DELAY, state.play_delay + delta)), 1
             )
             self.delay_var.set(f"{state.play_delay:.1f}s")
+        settings.save()
+
+    def _adj_speed(self, up: bool):
+        state.play_speed = settings.step_speed(state.play_speed, up)
+        self.speed_var.set(settings.format_speed(state.play_speed))
         settings.save()
 
     def _toggle_skip(self):
