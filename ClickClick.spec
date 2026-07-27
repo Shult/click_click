@@ -22,11 +22,13 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='MouseRecorder',
+    name='ClickClick',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    # UPX compresse l'exécutable mais déclenche les heuristiques antivirus, qui
+    # sont déjà sensibles à la combinaison PyInstaller + hook clavier global.
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,

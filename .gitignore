@@ -5,8 +5,16 @@ build/
 dist/
 wheels/
 *.egg-info
+.pytest_cache/
 
 # Virtual environments
 .venv
 
+# Données d'exécution
 sessions/
+settings.json
+*.log
+.clickclick_write_test
+
+# Enregistrement hérité, antérieur au dossier sessions/
+/session.json

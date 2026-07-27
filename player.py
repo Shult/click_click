@@ -1,62 +1,138 @@
+import logging
 import time
-from pynput.mouse import Button, Controller as MouseController
+
 from pynput.keyboard import Controller as KeyboardController
-from state import state
+from pynput.mouse import Button, Controller as MouseController
+
+import winapi
 from recorder import data_to_key
+from state import state
+
+log = logging.getLogger(__name__)
 
 _BTN = {"left": Button.left, "right": Button.right, "middle": Button.middle}
 
 
+def _release_all(m, kb, held_keys: set, held_buttons: set) -> None:
+    """Relâche tout ce qui est resté enfoncé.
+
+    Sans ce filet, une lecture interrompue en plein appui (Échap, exception,
+    fermeture) laisse la touche ou le bouton physiquement enfoncé au niveau du
+    système : l'utilisateur se retrouve avec Ctrl bloqué et doit tuer le
+    processus.
+    """
+    for key in list(held_keys):
+        try:
+            kb.release(key)
+        except Exception:
+            log.exception("relâchement impossible pour la touche %r", key)
+    held_keys.clear()
+
+    for btn in list(held_buttons):
+        try:
+            m.release(btn)
+        except Exception:
+            log.exception("relâchement impossible pour le bouton %r", btn)
+    held_buttons.clear()
+
+
+def _wait_until(target: float) -> bool:
+    """Attend l'instant `target` (échelle perf_counter).
+
+    Renvoie True si l'attente a été interrompue par une demande d'arrêt.
+    `Event.wait` rend la main immédiatement quand le drapeau est levé, ce qui
+    évite d'échantillonner l'arrêt toutes les quelques millisecondes.
+    """
+    remaining = target - time.perf_counter()
+    if remaining <= 0:
+        return state.stop_play.is_set()
+    return state.stop_play.wait(remaining)
+
+
+def _dispatch(event, m, kb, held_keys: set, held_buttons: set, vs: dict) -> None:
+    etype = event["type"]
+
+    if etype in ("move", "click", "scroll"):
+        m.position = winapi.clamp_to_screen(event["x"], event["y"], vs)
+
+    if etype == "click":
+        btn = _BTN.get(event["button"], Button.left)
+        try:
+            if event["pressed"]:
+                m.press(btn)
+                held_buttons.add(btn)
+            else:
+                m.release(btn)
+                held_buttons.discard(btn)
+        except Exception:
+            log.exception("clic non rejoué : %r", event)
+
+    elif etype == "scroll":
+        try:
+            m.scroll(event["dx"], event["dy"])
+        except Exception:
+            log.exception("scroll non rejoué : %r", event)
+
+    elif etype == "key":
+        try:
+            key = data_to_key(event)
+        except (KeyError, ValueError):
+            log.warning("touche inconnue dans la session : %r", event)
+            return
+        try:
+            if event["pressed"]:
+                kb.press(key)
+                held_keys.add(key)
+            else:
+                kb.release(key)
+                held_keys.discard(key)
+        except Exception:
+            log.exception("touche non rejouée : %r", event)
+
+
 def play_loop():
-    m  = MouseController()
+    m = MouseController()
     kb = KeyboardController()
+    held_keys: set = set()
+    held_buttons: set = set()
+    vs = winapi.virtual_screen()
+
     evts = (
         [e for e in state.events if e["type"] != "move"]
         if state.play_skip_moves else state.events
     )
 
-    for i in range(state.play_times):
-        if state.stop_play.is_set():
-            break
-        state.play_current = i + 1
-        prev_t = 0.0
-
-        for event in evts:
-            if state.stop_play.is_set():
-                break
-
-            wait = event["t"] - prev_t
-            if wait > 0:
-                end = time.perf_counter() + wait
-                while time.perf_counter() < end:
-                    if state.stop_play.is_set():
-                        break
-                    time.sleep(0.005)
-            prev_t = event["t"]
-
-            etype = event["type"]
-            if etype == "move":
-                m.position = (int(event["x"]), int(event["y"]))
-            elif etype == "click":
-                m.position = (int(event["x"]), int(event["y"]))
-                btn = _BTN.get(event["button"], Button.left)
-                (m.press if event["pressed"] else m.release)(btn)
-            elif etype == "scroll":
-                m.position = (int(event["x"]), int(event["y"]))
-                m.scroll(event["dx"], event["dy"])
-            elif etype == "key":
-                try:
-                    key = data_to_key(event)
-                    (kb.press if event["pressed"] else kb.release)(key)
-                except Exception:
-                    pass
-
-        if i < state.play_times - 1 and not state.stop_play.is_set():
-            end = time.perf_counter() + state.play_delay
-            while time.perf_counter() < end:
+    try:
+        with winapi.timer_resolution():
+            for i in range(state.play_times):
                 if state.stop_play.is_set():
                     break
-                time.sleep(0.05)
+                state.play_current = i + 1
 
-    state.playing = False
-    state.play_current = 0
+                # Horloge absolue calée sur le début de la passe. En attendant
+                # des deltas successifs, les erreurs d'arrondi s'accumulent et
+                # une longue session dérive de plusieurs secondes.
+                t0 = time.perf_counter()
+                interrupted = False
+
+                for event in evts:
+                    if _wait_until(t0 + event["t"]):
+                        interrupted = True
+                        break
+                    _dispatch(event, m, kb, held_keys, held_buttons, vs)
+
+                if interrupted:
+                    break
+
+                last = i == state.play_times - 1
+                if not last and state.stop_play.wait(state.play_delay):
+                    break
+    except Exception:
+        log.exception("la lecture s'est interrompue sur une erreur")
+    finally:
+        # Ces trois lignes doivent s'exécuter quoi qu'il arrive : `playing`
+        # resté à True laisse l'overlay en mode click-through, donc
+        # définitivement inutilisable à la souris.
+        _release_all(m, kb, held_keys, held_buttons)
+        state.playing = False
+        state.play_current = 0
