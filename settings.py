@@ -13,6 +13,7 @@ import json
 import logging
 import os
 
+import i18n
 import paths
 import sessions
 from state import state
@@ -107,8 +108,20 @@ def _as_playlist(value) -> list:
         try:
             out.append(sessions.sanitize_name(item))
         except sessions.SessionError:
-            log.warning("nom écarté de la file d'enchaînement : %r", item)
+            log.warning("name dropped from the play queue: %r", item)
     return out
+
+
+def _as_lang(value) -> str:
+    """Code de langue. Tout ce qui n'est pas proposé retombe sur le défaut.
+
+    Le test de type précède l'appartenance : une liste ou un objet JSON n'est
+    pas hachable, et `in` sur un dictionnaire lèverait un TypeError là où on
+    attend juste « ce n'est pas une langue connue ».
+    """
+    if isinstance(value, str) and value in i18n.LANGUAGES:
+        return value
+    return i18n.DEFAULT
 
 
 def _as_pos(value):
@@ -166,11 +179,11 @@ def load() -> None:
     except FileNotFoundError:
         return  # premier lancement
     except (OSError, json.JSONDecodeError):
-        log.exception("préférences illisibles, valeurs par défaut conservées")
+        log.exception("unreadable preferences, keeping the defaults")
         return
 
     if not isinstance(raw, dict):
-        log.warning("préférences au mauvais format, valeurs par défaut conservées")
+        log.warning("preferences in the wrong format, keeping the defaults")
         return
 
     state.play_times = _as_times(raw.get("play_times"))
@@ -180,15 +193,18 @@ def load() -> None:
     state.playlist = _as_playlist(raw.get("playlist"))
     state.sort_by_date = _as_bool(raw.get("sort_by_date"), True)
     state.window_pos = _as_pos(raw.get("window_pos"))
+    # La langue vit dans `i18n`, pas dans l'état : c'est le module qui traduit
+    # qui doit savoir en quelle langue, sans avoir à remonter jusqu'à l'état.
+    i18n.set_language(_as_lang(raw.get("language")))
 
     # Le journal reste en ASCII : stderr hérite de la page de code de la console
     # sous Windows, où « ∞ » lève une UnicodeEncodeError.
-    times = "infini" if state.play_times == INFINITE else str(state.play_times)
+    times = "infinite" if state.play_times == INFINITE else str(state.play_times)
     log.info(
-        "préférences chargées : %s répétition(s), %.1fs de délai, "
-        "vitesse %gx, skip_moves=%s, file de %d session(s)",
+        "preferences loaded: %s repeat(s), %.1fs delay, speed %gx, "
+        "skip_moves=%s, queue of %d session(s), language %s",
         times, state.play_delay, state.play_speed, state.play_skip_moves,
-        len(state.playlist),
+        len(state.playlist), i18n.language(),
     )
 
 
@@ -202,6 +218,7 @@ def save() -> None:
         "playlist": list(state.playlist),
         "sort_by_date": state.sort_by_date,
         "window_pos": list(state.window_pos) if state.window_pos else None,
+        "language": i18n.language(),
     }
     target = path()
     tmp = target.with_name(target.name + ".tmp")
@@ -210,7 +227,7 @@ def save() -> None:
             json.dump(payload, f, indent=2)
         os.replace(tmp, target)
     except OSError:
-        log.exception("préférences non enregistrées")
+        log.exception("preferences not saved")
         try:
             tmp.unlink(missing_ok=True)
         except OSError:

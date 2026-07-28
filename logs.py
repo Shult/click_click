@@ -48,13 +48,13 @@ def _install_excepthooks() -> None:
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc, tb)
             return
-        log.critical("exception non gérée", exc_info=(exc_type, exc, tb))
+        log.critical("unhandled exception", exc_info=(exc_type, exc, tb))
 
     def on_thread_exception(args):
         if issubclass(args.exc_type, SystemExit):
             return
         log.critical(
-            "exception non gérée dans le thread %s",
+            "unhandled exception in thread %s",
             args.thread.name if args.thread else "?",
             exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
         )

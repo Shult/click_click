@@ -68,6 +68,7 @@ Chaque session rend la souris et le clavier avant la suivante : une session mal 
 | Délai (s) | Pause entre chaque passe, et entre deux sessions d'une file |
 | Vitesse | Tempo de la lecture, de **0.25×** à **4×** par paliers (0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4) |
 | Skip moves | Ignore les déplacements souris à la lecture |
+| Langue | Langue de l'interface — voir ci-dessous |
 
 En mode infini, le statut affiche la passe en cours sur `∞` — `▶ PLAYING (37/∞)`. Une saisie qui n'est pas un entier ≥ 1 est refusée sans rien changer. Le nombre de passes est figé au lancement de la lecture : modifier le réglage en cours de route n'affecte que la lecture suivante.
 
@@ -75,7 +76,19 @@ La vitesse divise les horodatages enregistrés : à 2× une session de 30 s en p
 
 > Au-delà de 2×, l'application pilotée peut ne plus suivre : un menu qui met 200 ms à s'ouvrir ne s'ouvrira pas plus vite parce que le clic suivant arrive plus tôt. Une session qui échoue à 4× n'est pas forcément mal enregistrée.
 
-Ces réglages, la file d'enchaînement, le tri de la liste des sessions et la position de l'overlay sont **conservés d'un lancement à l'autre** (`settings.json`). Un fichier absent, illisible ou incohérent est ignoré sans bruit : l'application repart sur ses valeurs par défaut, clé par clé — un `settings.json` écrit par une version antérieure se charge donc sans rien perdre du reste.
+### Langue
+
+L'interface est en **anglais par défaut**. Le bouton `Language` du panneau Réglages fait défiler les langues disponibles — actuellement **English** et **Français** — et l'overlay se redessine immédiatement dans la nouvelle langue, panneau ouvert compris. Le choix est conservé dans `settings.json`.
+
+Chaque langue est affichée dans sa propre langue (`Français`, jamais `French`) : c'est le seul libellé qui doive rester lisible pour quelqu'un qui ne comprend pas l'interface qu'il a sous les yeux.
+
+Le journal, lui, est **en anglais** en toutes circonstances : il n'est pas traduit et ne suit pas ce réglage. Une trace se recoupe d'un poste à l'autre, se colle dans une issue et se cherche sur le web — trois choses qu'une traduction complique. Les commentaires du code restent en français.
+
+> Pour ajouter une langue : un dictionnaire de plus dans `i18n.py`, déclaré dans `LANGUAGES`. Un test vérifie qu'aucune clé ne manque — une langue incomplète afficherait de l'anglais au milieu du reste. À défaut, toute clé absente retombe sur l'anglais plutôt que de faire tomber la fenêtre.
+
+### Persistance
+
+Ces réglages, la langue, la file d'enchaînement, le tri de la liste des sessions et la position de l'overlay sont **conservés d'un lancement à l'autre** (`settings.json`). Un fichier absent, illisible ou incohérent est ignoré sans bruit : l'application repart sur ses valeurs par défaut, clé par clé — un `settings.json` écrit par une version antérieure se charge donc sans rien perdre du reste.
 
 ```jsonc
 {
@@ -85,7 +98,8 @@ Ces réglages, la file d'enchaînement, le tri de la liste des sessions et la po
   "play_skip_moves": false,
   "playlist": ["connexion", "routine", "deconnexion"],
   "sort_by_date": true,
-  "window_pos": [1670, 20]
+  "window_pos": [1670, 20],
+  "language": "fr"           // "en" par défaut
 }
 ```
 
@@ -152,6 +166,7 @@ uv run pytest
 | `player.py` | Replay et relâchement de sécurité |
 | `sessions.py` | Sérialisation, compression, compatibilité v1 |
 | `settings.py` | Préférences persistées |
+| `i18n.py` | Textes de l'interface, une langue par dictionnaire |
 | `paths.py` | Résolution des emplacements de fichiers |
 | `winapi.py` | DPI, timer, géométrie des écrans, click-through |
 | `logs.py` | Journalisation et capture des exceptions |

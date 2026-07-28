@@ -1,10 +1,21 @@
 import json
+import re
 
 import pytest
 
+import i18n
 import paths
 import sessions
 from sessions import SessionError
+
+
+def _msg(key: str, **params) -> str:
+    """Message attendu, désigné par sa clé plutôt que par sa formulation.
+
+    Les messages d'erreur sont traduits : les recopier en dur ferait échouer
+    ces tests à la première reformulation, et à chaque langue ajoutée.
+    """
+    return re.escape(i18n.t(key, **params))
 
 
 # ── Noms de fichiers ─────────────────────────────────────────────────────────
@@ -16,24 +27,27 @@ def test_sanitize_accepts_ordinary_names(name):
 
 @pytest.mark.parametrize("name", ["", "   ", "...", None])
 def test_sanitize_rejects_empty(name):
-    with pytest.raises(SessionError, match="vide"):
+    with pytest.raises(SessionError, match=_msg("error.name_empty")):
         sessions.sanitize_name(name)
 
 
 @pytest.mark.parametrize("name", ["a/b", "a\\b", "c:", "a?", "a*", 'a"b', "a|b"])
 def test_sanitize_rejects_path_characters(name):
-    with pytest.raises(SessionError, match="interdits"):
+    with pytest.raises(SessionError, match=_msg("error.name_invalid")):
         sessions.sanitize_name(name)
 
 
 @pytest.mark.parametrize("name", ["CON", "nul", "Com1", "LPT9"])
 def test_sanitize_rejects_windows_reserved_names(name):
-    with pytest.raises(SessionError, match="réservé"):
+    with pytest.raises(SessionError, match=_msg("error.name_reserved",
+                                                name=name)):
         sessions.sanitize_name(name)
 
 
 def test_sanitize_rejects_overlong_name():
-    with pytest.raises(SessionError, match="trop long"):
+    with pytest.raises(SessionError,
+                       match=_msg("error.name_too_long",
+                                  max=sessions.MAX_NAME_LEN)):
         sessions.sanitize_name("x" * (sessions.MAX_NAME_LEN + 1))
 
 
@@ -152,7 +166,7 @@ def test_v1_metadata_is_derived():
 
 
 def test_parse_rejects_unknown_shape():
-    with pytest.raises(SessionError, match="non reconnu"):
+    with pytest.raises(SessionError, match=_msg("error.unknown_format")):
         sessions.parse({"events": "pas une liste"})
 
 
@@ -253,7 +267,7 @@ def test_rename_leaves_another_active_session_alone(fresh_state):
 
 def test_rename_validates_the_new_name():
     sessions.save_session("run", [])
-    with pytest.raises(SessionError, match="interdits"):
+    with pytest.raises(SessionError, match=_msg("error.name_invalid")):
         sessions.rename_session("run", "a/b")
     assert sessions.session_path("run").exists()  # rien n'a bougé
 
@@ -262,7 +276,7 @@ def test_rename_refuses_to_overwrite_an_existing_session():
     sessions.save_session("a", [{"type": "move", "x": 1, "y": 1, "t": 0.0}])
     sessions.save_session("b", [{"type": "move", "x": 2, "y": 2, "t": 0.0}])
 
-    with pytest.raises(SessionError, match="existe déjà"):
+    with pytest.raises(SessionError, match=_msg("error.name_taken", name="b")):
         sessions.rename_session("a", "b")
 
     assert sessions.read_session("b")["events"][0]["x"] == 2
@@ -292,7 +306,8 @@ def test_rename_follows_every_occurrence_in_the_playlist(fresh_state):
 
 
 def test_rename_reports_a_missing_session():
-    with pytest.raises(SessionError, match="introuvable"):
+    with pytest.raises(SessionError,
+                       match=_msg("error.session_missing", name="fantôme")):
         sessions.rename_session("fantôme", "run")
 
 
@@ -345,7 +360,8 @@ def test_delete_keeps_the_playlist_object_alive(fresh_state):
 
 
 def test_delete_reports_a_missing_session():
-    with pytest.raises(SessionError, match="introuvable"):
+    with pytest.raises(SessionError,
+                       match=_msg("error.session_missing", name="fantôme")):
         sessions.delete_session("fantôme")
 
 
@@ -399,5 +415,6 @@ def test_duplicate_does_not_touch_the_active_session(fresh_state):
 
 
 def test_duplicate_reports_a_missing_session():
-    with pytest.raises(SessionError, match="introuvable"):
+    with pytest.raises(SessionError,
+                       match=_msg("error.session_missing", name="fantôme")):
         sessions.duplicate_session("fantôme")

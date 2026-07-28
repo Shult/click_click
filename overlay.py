@@ -6,9 +6,11 @@ from typing import Callable
 
 from pynput.keyboard import Key
 
+import i18n
 import sessions
 import settings
 import winapi
+from i18n import t
 from sessions import SessionError, load_session, save_session
 from state import state
 from version import __version__
@@ -119,7 +121,7 @@ class OverlayApp:
         hdr.bind("<B1-Motion>", self._drag_move)
         hdr.bind("<ButtonRelease-1>", self._drag_end)
 
-        self.status_var = tk.StringVar(value="⏸  EN ATTENTE")
+        self.status_var = tk.StringVar(value=t("status.idle"))
         self.status_lbl = tk.Label(self.root, textvariable=self.status_var,
                                    bg=self.BG, fg="#555555",
                                    font=("Segoe UI", 13, "bold"))
@@ -139,11 +141,32 @@ class OverlayApp:
 
         row2 = tk.Frame(self.root, bg=self.BG)
         row2.pack(padx=8, pady=(0, 7), fill="x")
-        self._small_btn(row2, "📂 Sessions", self._toggle_sessions).pack(side="left", expand=True, fill="x", padx=2)
-        self._small_btn(row2, "⚙ Réglages", self._toggle_settings).pack(side="left", expand=True, fill="x", padx=2)
+        self._small_btn(row2, t("panel.sessions"), self._toggle_sessions).pack(side="left", expand=True, fill="x", padx=2)
+        self._small_btn(row2, t("panel.settings"), self._toggle_settings).pack(side="left", expand=True, fill="x", padx=2)
 
         self.panel_frame = tk.Frame(self.root, bg=self.BG2)
         self._active_panel = None  # "sessions" | "settings" | None
+
+    def _relayout(self):
+        """Reconstruit l'overlay, libellés relus dans la langue courante.
+
+        Tkinter n'a pas de notion de texte réactif : un `text=` posé sur un
+        bouton y reste. Plutôt que de tenir la liste de tous les widgets à
+        retraduire — que le prochain libellé ajouté oublierait —, la fenêtre est
+        refaite. Elle est petite, et cela n'arrive qu'au changement de langue.
+
+        Le panneau ouvert est rouvert : refermer le panneau depuis lequel on
+        vient de cliquer donnerait l'impression que le clic a raté.
+        """
+        panel = self._active_panel
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        self._build_ui()
+        builders = {"sessions": self._build_sessions,
+                    "settings": self._build_settings}
+        if panel in builders:
+            self._open_panel(panel, builders[panel])
+        self.root.update()
 
     def _btn(self, parent, text, color, cmd):
         return tk.Button(parent, text=text, bg=color, fg="white",
@@ -211,7 +234,7 @@ class OverlayApp:
             self.inf_btn.pack(side="left", padx=(4, 0))
             self._paint_infinite_btn()
             return f2
-        row("Répétitions", times_w)
+        row(t("settings.times"), times_w)
 
         self.delay_var = tk.StringVar(value=f"{state.play_delay:.1f}s")
 
@@ -226,7 +249,7 @@ class OverlayApp:
                       font=("Segoe UI", 9), activebackground="#3a3a3a",
                       command=lambda: self._adj("delay", 0.5)).pack(side="left")
             return f2
-        row("Délai (s)", delay_w)
+        row(t("settings.delay"), delay_w)
 
         self.speed_var = tk.StringVar(value=settings.format_speed(state.play_speed))
 
@@ -242,7 +265,7 @@ class OverlayApp:
                       font=("Segoe UI", 9), activebackground="#3a3a3a",
                       command=lambda: self._adj_speed(True)).pack(side="left")
             return f2
-        row("Vitesse", speed_w)
+        row(t("settings.speed"), speed_w)
 
         self.skip_var = tk.BooleanVar(value=state.play_skip_moves)
 
@@ -250,7 +273,17 @@ class OverlayApp:
             return tk.Checkbutton(p, variable=self.skip_var, bg=self.BG2,
                                   selectcolor="#2a2a2a", activebackground=self.BG2,
                                   command=self._toggle_skip)
-        row("Skip moves", skip_w)
+        row(t("settings.skip_moves"), skip_w)
+
+        def lang_w(p):
+            # Chaque langue est affichée dans sa propre langue : c'est le seul
+            # libellé du panneau qui doive rester lisible pour quelqu'un qui ne
+            # comprend pas l'interface qu'il a sous les yeux.
+            return tk.Button(p, text=i18n.language_name(), bg="#2a2a2a",
+                             fg="white", bd=0, font=("Segoe UI", 9), width=9,
+                             activebackground="#3a3a3a", activeforeground="white",
+                             cursor="hand2", command=self._cycle_language)
+        row(t("settings.language"), lang_w)
 
     # ── Sessions panel ───────────────────────────────────────────────────────
 
@@ -311,10 +344,10 @@ class OverlayApp:
 
         acts = tk.Frame(f, bg=self.BG2)
         acts.pack(fill="x", padx=8, pady=(1, 6))
-        for label, cmd in (("Charger", self._act_load),
-                           ("Renommer", self._act_rename),
-                           ("Dupliquer", self._act_duplicate),
-                           ("Supprimer", self._act_delete)):
+        for label, cmd in ((t("sessions.load"), self._act_load),
+                           (t("sessions.rename"), self._act_rename),
+                           (t("sessions.duplicate"), self._act_duplicate),
+                           (t("sessions.delete"), self._act_delete)):
             self._tiny_btn(acts, label, cmd).pack(side="left", expand=True,
                                                   fill="x", padx=1)
 
@@ -332,7 +365,7 @@ class OverlayApp:
 
     def _build_queue(self, f):
         tk.Frame(f, bg="#2a2a2a", height=1).pack(fill="x")
-        tk.Label(f, text="⛓ File d'enchaînement", bg=self.BG2, fg="#555555",
+        tk.Label(f, text=t("queue.title"), bg=self.BG2, fg="#555555",
                  font=("Segoe UI", 7)).pack(anchor="w", padx=8, pady=(3, 1))
 
         body = tk.Frame(f, bg=self.BG2)
@@ -352,15 +385,15 @@ class OverlayApp:
         self.queue_list.pack(side="left", fill="both", expand=True)
         bar.config(command=self.queue_list.yview)
 
-        self._tiny_btn(f, "＋ Ajouter la session sélectionnée",
+        self._tiny_btn(f, t("queue.add"),
                        self._queue_add).pack(fill="x", padx=8, pady=(2, 0))
 
         qacts = tk.Frame(f, bg=self.BG2)
         qacts.pack(fill="x", padx=8, pady=(1, 6))
         for label, cmd in (("↑", lambda: self._queue_move(-1)),
                            ("↓", lambda: self._queue_move(1)),
-                           ("Retirer", self._queue_remove),
-                           ("Vider", self._queue_clear)):
+                           (t("queue.remove"), self._queue_remove),
+                           (t("queue.clear"), self._queue_clear)):
             self._tiny_btn(qacts, label, cmd).pack(side="left", expand=True,
                                                    fill="x", padx=1)
 
@@ -382,8 +415,7 @@ class OverlayApp:
     def _queue_index(self) -> int | None:
         selection = self.queue_list.curselection()
         if not selection:
-            self._sess_msg("Sélectionne d'abord une entrée de la file",
-                           error=True)
+            self._sess_msg(t("queue.select_first"), error=True)
             return None
         return selection[0]
 
@@ -392,12 +424,14 @@ class OverlayApp:
         if not name:
             return
         if len(state.playlist) >= settings.MAX_PLAYLIST:
-            self._sess_msg(f"File pleine ({settings.MAX_PLAYLIST})", error=True)
+            self._sess_msg(t("queue.full", max=settings.MAX_PLAYLIST),
+                           error=True)
             return
         state.playlist.append(name)
         settings.save()
         self._fill_queue(select=len(state.playlist) - 1)
-        self._sess_msg(f"« {name} » ajoutée en position {len(state.playlist)}")
+        self._sess_msg(t("queue.added", name=name,
+                         position=len(state.playlist)))
 
     def _queue_move(self, delta: int):
         index = self._queue_index()
@@ -418,16 +452,15 @@ class OverlayApp:
         name = state.playlist.pop(index)
         settings.save()
         self._fill_queue(select=min(index, len(state.playlist) - 1))
-        self._sess_msg(f"« {name} » retirée de la file")
+        self._sess_msg(t("queue.removed", name=name))
 
     def _queue_clear(self):
         if not state.playlist:
             return
         self._ask_confirm(
-            "Vider la file",
-            f"Retirer les {len(state.playlist)} entrées de la file ?\n"
-            "Les sessions elles-mêmes ne sont pas touchées.",
-            "Vider",
+            t("queue.clear_title"),
+            t("queue.clear_message", count=len(state.playlist)),
+            t("queue.clear"),
             self._do_clear_queue,
         )
 
@@ -435,10 +468,11 @@ class OverlayApp:
         state.playlist.clear()
         settings.save()
         self._fill_queue()
-        self._sess_msg("File vidée")
+        self._sess_msg(t("queue.cleared"))
 
     def _sort_label(self) -> str:
-        return "Tri : date" if state.sort_by_date else "Tri : A-Z"
+        return t("sessions.sort_date" if state.sort_by_date
+                 else "sessions.sort_name")
 
     def _exists(self, attr: str) -> bool:
         """Vrai si ce widget a été construit et n'a pas encore été détruit.
@@ -464,11 +498,12 @@ class OverlayApp:
                 self.sess_list.itemconfig(i, foreground="#55cc55")
 
         if not names:
-            self._sess_msg("Aucune session")
+            self._sess_msg(t("sessions.none"))
         elif not self._listed:
-            self._sess_msg(f"Aucun nom ne contient « {self._filter} »")
+            self._sess_msg(t("sessions.no_match", query=self._filter))
         else:
-            self._sess_msg(f"{len(self._listed)} / {len(names)} session(s)")
+            self._sess_msg(t("sessions.count", shown=len(self._listed),
+                             total=len(names)))
 
         target = select or state.active_session
         if target in self._listed:
@@ -496,7 +531,7 @@ class OverlayApp:
     def _selected_session(self) -> str | None:
         selection = self.sess_list.curselection()
         if not selection:
-            self._sess_msg("Sélectionne d'abord une session", error=True)
+            self._sess_msg(t("sessions.select_first"), error=True)
             return None
         return self._listed[selection[0]]
 
@@ -518,7 +553,7 @@ class OverlayApp:
             self._fill_sessions(select=new)
             self._fill_queue()
 
-        self._ask_name("Renommer la session", name, do)
+        self._ask_name(t("dialog.rename_title"), name, do)
 
     def _act_duplicate(self):
         name = self._selected_session()
@@ -530,21 +565,20 @@ class OverlayApp:
             self._sess_msg(str(exc), error=True)
             return
         except Exception:
-            log.exception("duplication de « %s » impossible", name)
-            self._sess_msg("Erreur inattendue, voir le journal", error=True)
+            log.exception("could not duplicate %r", name)
+            self._sess_msg(t("dialog.unexpected_error"), error=True)
             return
         self._fill_sessions(select=new)
-        self._sess_msg(f"Copiée en « {new} »")
+        self._sess_msg(t("sessions.duplicated", name=new))
 
     def _act_delete(self):
         name = self._selected_session()
         if not name:
             return
         self._ask_confirm(
-            "Supprimer la session",
-            f"Supprimer définitivement « {name} » ?\n"
-            "Le fichier est effacé, sans corbeille.",
-            "Supprimer",
+            t("dialog.delete_title"),
+            t("dialog.delete_message", name=name),
+            t("sessions.delete"),
             lambda: self._do_delete(name),
         )
 
@@ -553,7 +587,7 @@ class OverlayApp:
         settings.save()  # la session a pu disparaître de la file
         self._fill_sessions()
         self._fill_queue()
-        self._sess_msg(f"« {name} » supprimée")
+        self._sess_msg(t("sessions.deleted", name=name))
 
     # ── Panel toggles ────────────────────────────────────────────────────────
 
@@ -673,6 +707,15 @@ class OverlayApp:
         state.play_skip_moves = self.skip_var.get()
         settings.save()
 
+    def _cycle_language(self):
+        """Passe à la langue suivante et redessine l'overlay dedans."""
+        i18n.set_language(i18n.next_language())
+        settings.save()
+        # `_relayout` détruit le bouton d'où part ce clic — Tk s'en accommode,
+        # les boîtes de dialogue se ferment de la même façon. Mais plus rien
+        # ici ne doit toucher aux widgets après cet appel : ils ont changé.
+        self._relayout()
+
     # ── Drag ─────────────────────────────────────────────────────────────────
 
     def _drag_start(self, e):
@@ -707,7 +750,7 @@ class OverlayApp:
 
         if hidden:
             self.root.withdraw()
-            log.info("overlay masqué — F11 pour le réafficher")
+            log.info("overlay hidden - F11 to show it again")
             return
 
         self.root.deiconify()
@@ -718,7 +761,7 @@ class OverlayApp:
         self.root.wm_attributes("-alpha", 0.22 if self._click_through else 0.93)
         self._hwnd = self.root.winfo_id()
         winapi.set_click_through(self._hwnd, self._click_through)
-        log.info("overlay réaffiché")
+        log.info("overlay shown again")
 
     # ── Click-through ────────────────────────────────────────────────────────
 
@@ -779,10 +822,11 @@ class OverlayApp:
         # Une saisie de nom accolée à un overlay masqué flotterait sans contexte,
         # et l'utilisateur ne saurait pas quoi faire de cette fenêtre orpheline.
         self._set_hidden(False)
-        dialog = self._dialog("Sauvegarder la session",
+        dialog = self._dialog(t("dialog.save_title"),
                               self.px(220), self.px(150))
 
-        tk.Label(dialog, text=f"{len(state.events)} évts  •  {duration:.2f}s",
+        tk.Label(dialog, text=t("dialog.save_summary",
+                                count=len(state.events), duration=duration),
                  bg=self.HDR, fg="#555555",
                  font=("Segoe UI", 8)).pack(pady=(10, 4))
 
@@ -815,7 +859,7 @@ class OverlayApp:
         def cancel(e=None):
             dialog.destroy()
 
-        tk.Button(dialog, text="Enregistrer", bg="#1a4a1a", fg="white",
+        tk.Button(dialog, text=t("dialog.save"), bg="#1a4a1a", fg="white",
                   font=("Segoe UI", 9, "bold"), bd=0, relief="flat",
                   activebackground="#1a4a1a", activeforeground="white",
                   cursor="hand2", pady=5, command=confirm).pack(
@@ -852,12 +896,14 @@ class OverlayApp:
                 error_var.set(str(exc))
                 return
             except Exception:
-                log.exception("%s : échec inattendu", title)
-                error_var.set("Erreur inattendue, voir le journal")
+                # Le titre est du texte d'interface, donc traduit : il part en
+                # donnée du message, pas dans le message lui-même.
+                log.exception("dialog action failed (%r)", title)
+                error_var.set(t("dialog.unexpected_error"))
                 return
             dialog.destroy()
 
-        tk.Button(dialog, text="Valider", bg="#1a4a1a", fg="white",
+        tk.Button(dialog, text=t("dialog.confirm"), bg="#1a4a1a", fg="white",
                   font=("Segoe UI", 9, "bold"), bd=0, relief="flat",
                   activebackground="#1a4a1a", activeforeground="white",
                   cursor="hand2", pady=5, command=confirm).pack(
@@ -890,11 +936,14 @@ class OverlayApp:
             except SessionError as exc:
                 self._sess_msg(str(exc), error=True)
             except Exception:
-                log.exception("%s : échec inattendu", title)
-                self._sess_msg("Erreur inattendue, voir le journal", error=True)
+                # Le titre est du texte d'interface, donc traduit : il part en
+                # donnée du message, pas dans le message lui-même.
+                log.exception("dialog action failed (%r)", title)
+                self._sess_msg(t("dialog.unexpected_error"), error=True)
             dialog.destroy()
 
-        cancel_btn = tk.Button(btns, text="Annuler", bg="#2a2a2a", fg="#aaaaaa",
+        cancel_btn = tk.Button(btns, text=t("dialog.cancel"), bg="#2a2a2a",
+                               fg="#aaaaaa",
                                font=("Segoe UI", 8), bd=0, relief="flat",
                                activebackground="#3a3a3a", cursor="hand2",
                                pady=4, command=dialog.destroy)
@@ -921,7 +970,7 @@ class OverlayApp:
             try:
                 action(self)
             except Exception:
-                log.exception("action d'interface en échec")
+                log.exception("UI action failed")
 
     def _update(self):
         if state.quit.is_set():
@@ -929,18 +978,18 @@ class OverlayApp:
             return
 
         if state.playing:
-            self.status_var.set(
-                f"▶  PLAYING  ({state.play_current}"
-                f"/{settings.format_times(state.play_times)})"
-            )
+            self.status_var.set(t(
+                "status.playing", current=state.play_current,
+                total=settings.format_times(state.play_times),
+            ))
             self.status_lbl.config(fg="#44cc44")
             self._set_click_through(True)
         elif state.recording:
-            self.status_var.set("⏺  REC")
+            self.status_var.set(t("status.recording"))
             self.status_lbl.config(fg="#cc3333")
             self._set_click_through(False)
         else:
-            self.status_var.set("⏸  EN ATTENTE")
+            self.status_var.set(t("status.idle"))
             self.status_lbl.config(fg="#555555")
             self._set_click_through(False)
 
@@ -955,10 +1004,10 @@ class OverlayApp:
         elif state.playlist and not state.playing:
             # La file prend le pas sur la session chargée : il faut que ça se
             # voie sans ouvrir un panneau, sinon F10 devient imprévisible.
-            self.session_var.set(f"⛓ file : {len(state.playlist)} session(s)")
+            self.session_var.set(t("header.queue", count=len(state.playlist)))
             self.session_lbl.config(fg="#4488aa")
         elif state.active_session and state.screen_mismatch:
-            self.session_var.set(f"⚠ {name}  (écran différent)")
+            self.session_var.set(t("header.screen_mismatch", name=name))
             self.session_lbl.config(fg="#cc8844")
         else:
             self.session_var.set(name)

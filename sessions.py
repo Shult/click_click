@@ -14,6 +14,7 @@ from pathlib import Path
 
 import paths
 import winapi
+from i18n import t
 from state import state
 
 log = logging.getLogger(__name__)
@@ -30,7 +31,11 @@ _RESERVED_NAMES = (
 
 
 class SessionError(Exception):
-    """Erreur exploitable telle quelle dans l'interface."""
+    """Erreur exploitable telle quelle dans l'interface.
+
+    Le message est donc traduit dès la levée, dans la langue courante : il est
+    affiché immédiatement, et personne ne le stocke pour plus tard.
+    """
 
 
 # ── Nommage ──────────────────────────────────────────────────────────────────
@@ -44,13 +49,13 @@ def sanitize_name(name: str) -> str:
     """
     name = (name or "").strip().rstrip(". ")
     if not name:
-        raise SessionError("Nom vide")
+        raise SessionError(t("error.name_empty"))
     if len(name) > MAX_NAME_LEN:
-        raise SessionError(f"Nom trop long ({MAX_NAME_LEN} caractères max)")
+        raise SessionError(t("error.name_too_long", max=MAX_NAME_LEN))
     if any(c in _INVALID_CHARS for c in name):
-        raise SessionError('Caractères interdits : < > : " / \\ | ? *')
+        raise SessionError(t("error.name_invalid"))
     if name.upper() in _RESERVED_NAMES:
-        raise SessionError(f"« {name} » est un nom réservé par Windows")
+        raise SessionError(t("error.name_reserved", name=name))
     return name
 
 
@@ -65,7 +70,7 @@ def _free_name(base: str) -> str:
         candidate = base[:MAX_NAME_LEN - len(suffix)].rstrip() + suffix
         if not session_path(candidate).exists():
             return candidate
-    raise SessionError("Trop de copies de cette session")
+    raise SessionError(t("error.too_many_copies"))
 
 
 # ── Compression ──────────────────────────────────────────────────────────────
@@ -128,10 +133,12 @@ def save_session(name: str, events: list | None = None) -> Path:
         os.replace(tmp, path)
     except OSError as exc:
         tmp.unlink(missing_ok=True)
-        raise SessionError(f"Écriture impossible : {exc.strerror or exc}") from exc
+        raise SessionError(
+            t("error.write_failed", reason=exc.strerror or exc)
+        ) from exc
 
     log.info(
-        "session « %s » enregistrée : %d évènements, %.2fs, %d ko",
+        "session %r saved: %d events, %.2fs, %d kB",
         name, payload["event_count"], payload["duration"],
         path.stat().st_size // 1024,
     )
@@ -161,7 +168,7 @@ def parse(raw) -> dict:
             "duration", raw["events"][-1]["t"] if raw["events"] else 0.0
         )
         return raw
-    raise SessionError("Format de session non reconnu")
+    raise SessionError(t("error.unknown_format"))
 
 
 def read_session(name: str) -> dict:
@@ -170,11 +177,13 @@ def read_session(name: str) -> dict:
         with open(path, encoding="utf-8") as f:
             return parse(json.load(f))
     except FileNotFoundError as exc:
-        raise SessionError(f"Session « {name} » introuvable") from exc
+        raise SessionError(t("error.session_missing", name=name)) from exc
     except json.JSONDecodeError as exc:
-        raise SessionError(f"Fichier illisible (ligne {exc.lineno})") from exc
+        raise SessionError(t("error.unreadable_file", line=exc.lineno)) from exc
     except OSError as exc:
-        raise SessionError(f"Lecture impossible : {exc.strerror or exc}") from exc
+        raise SessionError(
+            t("error.read_failed", reason=exc.strerror or exc)
+        ) from exc
 
 
 def screens_differ(recorded: dict | None, current: dict | None) -> bool:
@@ -192,7 +201,7 @@ def load_session(name: str) -> bool:
     try:
         payload = read_session(name)
     except SessionError:
-        log.exception("chargement de « %s » impossible", name)
+        log.exception("could not load session %r", name)
         return False
 
     state.events = payload["events"]
@@ -203,10 +212,10 @@ def load_session(name: str) -> bool:
     )
     if state.screen_mismatch:
         log.warning(
-            "« %s » enregistrée sur %r, écran actuel %r : le replay sera décalé",
+            "%r recorded on %r, current screen %r: replay will be offset",
             name, state.session_screen, winapi.virtual_screen(),
         )
-    log.info("session « %s » chargée : %d évènements", name, len(state.events))
+    log.info("session %r loaded: %d events", name, len(state.events))
     return True
 
 
@@ -227,14 +236,16 @@ def rename_session(old: str, new: str) -> str:
     # Sur NTFS, `exists()` répond vrai à une simple différence de casse :
     # « run » → « Run » n'est pas une collision, c'est le même fichier.
     if dst.exists() and name.lower() != old.lower():
-        raise SessionError(f"« {name} » existe déjà")
+        raise SessionError(t("error.name_taken", name=name))
 
     try:
         os.replace(src, dst)
     except FileNotFoundError as exc:
-        raise SessionError(f"Session « {old} » introuvable") from exc
+        raise SessionError(t("error.session_missing", name=old)) from exc
     except OSError as exc:
-        raise SessionError(f"Renommage impossible : {exc.strerror or exc}") from exc
+        raise SessionError(
+            t("error.rename_failed", reason=exc.strerror or exc)
+        ) from exc
 
     if state.active_session == old:
         state.active_session = name
@@ -242,7 +253,7 @@ def rename_session(old: str, new: str) -> str:
     # un renommage la casserait silencieusement. C'est à l'appelant de la
     # persister — ce module ignore tout des préférences.
     state.playlist[:] = [name if n == old else n for n in state.playlist]
-    log.info("session « %s » renommée en « %s »", old, name)
+    log.info("session %r renamed to %r", old, name)
     return name
 
 
@@ -251,9 +262,11 @@ def delete_session(name: str) -> None:
     try:
         session_path(name).unlink()
     except FileNotFoundError as exc:
-        raise SessionError(f"Session « {name} » introuvable") from exc
+        raise SessionError(t("error.session_missing", name=name)) from exc
     except OSError as exc:
-        raise SessionError(f"Suppression impossible : {exc.strerror or exc}") from exc
+        raise SessionError(
+            t("error.delete_failed", reason=exc.strerror or exc)
+        ) from exc
 
     if state.active_session == name:
         # Les évènements chargés restent en mémoire : ils sont peut-être en
@@ -263,14 +276,14 @@ def delete_session(name: str) -> None:
     # Une entrée de file qui ne pointe plus sur rien ne serait qu'un piège :
     # elle serait sautée à la lecture sans que personne comprenne pourquoi.
     state.playlist[:] = [n for n in state.playlist if n != name]
-    log.info("session « %s » supprimée", name)
+    log.info("session %r deleted", name)
 
 
 def duplicate_session(name: str) -> str:
     """Copie une session sous le premier nom libre « name (n) »."""
     src = session_path(name)
     if not src.exists():
-        raise SessionError(f"Session « {name} » introuvable")
+        raise SessionError(t("error.session_missing", name=name))
 
     new = _free_name(name)
     dst = session_path(new)
@@ -285,9 +298,11 @@ def duplicate_session(name: str) -> str:
             tmp.unlink(missing_ok=True)
         except OSError:
             pass
-        raise SessionError(f"Copie impossible : {exc.strerror or exc}") from exc
+        raise SessionError(
+            t("error.copy_failed", reason=exc.strerror or exc)
+        ) from exc
 
-    log.info("session « %s » dupliquée en « %s »", name, new)
+    log.info("session %r duplicated as %r", name, new)
     return new
 
 
@@ -305,7 +320,7 @@ def list_sessions(by_date: bool = True) -> list[str]:
     try:
         files = [p for p in paths.sessions_dir().iterdir() if p.suffix == ".json"]
     except OSError:
-        log.exception("listage du dossier de sessions impossible")
+        log.exception("could not list the sessions folder")
         return []
     if by_date:
         files.sort(key=lambda p: p.stat().st_mtime, reverse=True)

@@ -19,6 +19,17 @@ def isolated_home(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def default_language(monkeypatch):
+    """Repart en anglais : la langue courante est un état de module.
+
+    Sans ça, un test qui bascule en français laisse tous les suivants comparer
+    des messages traduits, et l'ordre d'exécution devient significatif.
+    """
+    import i18n
+    monkeypatch.setattr(i18n, "_lang", i18n.DEFAULT)
+
+
+@pytest.fixture(autouse=True)
 def fresh_state(monkeypatch):
     """Repart d'un état vierge : le module expose un singleton mutable."""
     import player

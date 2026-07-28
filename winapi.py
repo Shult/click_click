@@ -67,7 +67,7 @@ def enable_dpi_awareness() -> None:
     try:
         _user32.SetProcessDPIAware()
     except AttributeError:
-        log.warning("aucune API DPI disponible, coordonnées possiblement virtualisées")
+        log.warning("no DPI API available, coordinates may be virtualized")
 
 
 def system_dpi() -> int:
@@ -136,7 +136,7 @@ def monitor_rect(hwnd: int = 0) -> dict:
             "monitors": 1,
         }
     except (AttributeError, OSError, ValueError):
-        log.exception("écran de la fenêtre introuvable, repli sur le bureau")
+        log.exception("window monitor not found, falling back to the desktop")
         return virtual_screen()
 
 
@@ -165,7 +165,7 @@ def set_click_through(hwnd: int, enable: bool) -> None:
         style = style | WS_EX_TRANSPARENT if enable else style & ~WS_EX_TRANSPARENT
         _user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
     except OSError:
-        log.exception("bascule click-through impossible")
+        log.exception("could not toggle click-through")
 
 
 @contextmanager
@@ -181,7 +181,7 @@ def timer_resolution(ms: int = 1):
         try:
             raised = _winmm.timeBeginPeriod(ms) == 0
         except (AttributeError, OSError):
-            log.debug("timeBeginPeriod indisponible")
+            log.debug("timeBeginPeriod unavailable")
     try:
         yield
     finally:

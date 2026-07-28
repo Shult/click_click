@@ -87,12 +87,11 @@ def request_quit():
     if thread and thread.is_alive():
         thread.join(timeout=2.0)
         if thread.is_alive():
-            log.warning("le thread de lecture ne s'est pas arrêté à temps")
+            log.warning("playback thread did not stop in time")
 
 
 def main():
-    log.info("ClickClick %s — démarrage, données dans %s",
-             __version__, paths.home())
+    log.info("ClickClick %s starting, data in %s", __version__, paths.home())
     settings.load()  # avant l'overlay : il y lit sa position de départ
 
     mouse_listener = mouse.Listener(
@@ -115,7 +114,7 @@ def main():
         kb_listener.stop()
         mouse_listener.stop()
         settings.save()  # filet : les réglages sont déjà écrits à chaque change
-        log.info("arrêt")
+        log.info("shutdown")
 
     sys.exit(0)
 

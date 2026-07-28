@@ -28,14 +28,14 @@ def _release_all(m, kb, held_keys: set, held_buttons: set) -> None:
         try:
             kb.release(key)
         except Exception:
-            log.exception("relâchement impossible pour la touche %r", key)
+            log.exception("could not release key %r", key)
     held_keys.clear()
 
     for btn in list(held_buttons):
         try:
             m.release(btn)
         except Exception:
-            log.exception("relâchement impossible pour le bouton %r", btn)
+            log.exception("could not release button %r", btn)
     held_buttons.clear()
 
 
@@ -68,19 +68,19 @@ def _dispatch(event, m, kb, held_keys: set, held_buttons: set, vs: dict) -> None
                 m.release(btn)
                 held_buttons.discard(btn)
         except Exception:
-            log.exception("clic non rejoué : %r", event)
+            log.exception("click not replayed: %r", event)
 
     elif etype == "scroll":
         try:
             m.scroll(event["dx"], event["dy"])
         except Exception:
-            log.exception("scroll non rejoué : %r", event)
+            log.exception("scroll not replayed: %r", event)
 
     elif etype == "key":
         try:
             key = data_to_key(event)
         except (KeyError, ValueError):
-            log.warning("touche inconnue dans la session : %r", event)
+            log.warning("unknown key in the session: %r", event)
             return
         try:
             if event["pressed"]:
@@ -90,7 +90,7 @@ def _dispatch(event, m, kb, held_keys: set, held_buttons: set, vs: dict) -> None
                 kb.release(key)
                 held_keys.discard(key)
         except Exception:
-            log.exception("touche non rejouée : %r", event)
+            log.exception("key not replayed: %r", event)
 
 
 def can_play() -> bool:
@@ -121,7 +121,7 @@ def sequence() -> list[tuple[str, list]]:
             payload = sessions.read_session(name)
         except SessionError:
             # Une session absente ne doit pas annuler tout l'enchaînement.
-            log.exception("session « %s » sautée dans la file", name)
+            log.exception("session %r skipped in the queue", name)
             continue
         out.append((name, _filtered(payload["events"])))
     return out
@@ -189,7 +189,7 @@ def play_loop():
                     break
                 i += 1
     except Exception:
-        log.exception("la lecture s'est interrompue sur une erreur")
+        log.exception("playback stopped on an error")
     finally:
         # Ce bloc doit s'exécuter quoi qu'il arrive : `playing` resté à True
         # laisse l'overlay en mode click-through, donc définitivement
