@@ -91,6 +91,13 @@ _CATALOG = {
                                   "The file is erased, with no recycle bin."),
         "dialog.unexpected_error": "Unexpected error, see the log",
 
+        # ── Mise à jour ──────────────────────────────────────────────────────
+        "update.badge": "⬆ {version}",
+        "update.title": "Update available",
+        "update.message": ("Version {version} is available (current: "
+                           "{current}).\nDownload it and restart the app?"),
+        "update.install": "Install",
+
         # ── Erreurs de session ───────────────────────────────────────────────
         "error.name_empty": "Empty name",
         "error.name_too_long": "Name too long ({max} characters max)",
@@ -163,6 +170,13 @@ _CATALOG = {
         "dialog.delete_message": ("Supprimer définitivement « {name} » ?\n"
                                   "Le fichier est effacé, sans corbeille."),
         "dialog.unexpected_error": "Erreur inattendue, voir le journal",
+
+        # ── Mise à jour ──────────────────────────────────────────────────────
+        "update.badge": "⬆ {version}",
+        "update.title": "Mise à jour disponible",
+        "update.message": ("La version {version} est disponible (actuelle : "
+                           "{current}).\nLa télécharger et redémarrer ?"),
+        "update.install": "Installer",
 
         # ── Erreurs de session ───────────────────────────────────────────────
         "error.name_empty": "Nom vide",

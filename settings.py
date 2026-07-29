@@ -192,6 +192,7 @@ def load() -> None:
     state.play_skip_moves = _as_bool(raw.get("play_skip_moves"), False)
     state.playlist = _as_playlist(raw.get("playlist"))
     state.sort_by_date = _as_bool(raw.get("sort_by_date"), True)
+    state.update_check = _as_bool(raw.get("update_check"), True)
     state.window_pos = _as_pos(raw.get("window_pos"))
     # La langue vit dans `i18n`, pas dans l'état : c'est le module qui traduit
     # qui doit savoir en quelle langue, sans avoir à remonter jusqu'à l'état.
@@ -217,6 +218,7 @@ def save() -> None:
         "play_skip_moves": state.play_skip_moves,
         "playlist": list(state.playlist),
         "sort_by_date": state.sort_by_date,
+        "update_check": state.update_check,
         "window_pos": list(state.window_pos) if state.window_pos else None,
         "language": i18n.language(),
     }

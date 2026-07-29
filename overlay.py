@@ -1,5 +1,6 @@
 import logging
 import queue
+import threading
 import time
 import tkinter as tk
 from typing import Callable
@@ -9,6 +10,7 @@ from pynput.keyboard import Key
 import i18n
 import sessions
 import settings
+import updater
 import winapi
 from i18n import t
 from sessions import SessionError, load_session, save_session
@@ -49,6 +51,10 @@ class OverlayApp:
         # filtrée au démarrage donnerait l'impression d'avoir perdu des fichiers.
         self._filter = ""
         self._listed: list[str] = []
+        # Mise à jour disponible, déposée par notify_update. Conservée ici et
+        # non dans l'état global : seul l'overlay s'en sert.
+        self._update_info: dict | None = None
+        self._updating = False
 
         self._build_ui()
         self.root.update()
@@ -109,6 +115,15 @@ class OverlayApp:
         # version tourne quand deux binaires coexistent sur la machine.
         tk.Label(hdr, text=f"v{__version__}", bg=self.HDR, fg="#3a3a3a",
                  font=("Segoe UI", 7)).pack(side="left", padx=(4, 0), pady=3)
+        # Badge de mise à jour : créé d'emblée pour survivre aux _relayout,
+        # affiché seulement quand notify_update a trouvé plus récent.
+        self.upd_btn = tk.Button(hdr, text="", bg=self.HDR, fg="#44cc44",
+                                 font=("Segoe UI", 7, "bold"), bd=0,
+                                 activebackground=self.HDR,
+                                 activeforeground="#66ee66", cursor="hand2",
+                                 command=self._update_clicked)
+        if self._update_info:
+            self._show_update_btn()
         tk.Button(hdr, text="×", bg=self.HDR, fg="#555555",
                   font=("Segoe UI", 11, "bold"), bd=0,
                   activebackground="#aa2222", activeforeground="white",
@@ -957,6 +972,59 @@ class OverlayApp:
 
         dialog.bind("<Escape>", lambda _e: dialog.destroy())
         self._run_modal(dialog)
+
+    # ── Mise à jour ──────────────────────────────────────────────────────────
+
+    def notify_update(self, info: dict):
+        """Affiche le badge « ⬆ version ». Arrive par la file UI."""
+        self._update_info = info
+        self._show_update_btn()
+
+    def _show_update_btn(self):
+        if self._updating:
+            self.upd_btn.config(text="…", state="disabled")
+        else:
+            self.upd_btn.config(
+                text=t("update.badge", version=self._update_info["version"]),
+                state="normal",
+            )
+        self.upd_btn.pack(side="left", padx=(4, 0), pady=3)
+
+    def _update_clicked(self):
+        # Pas pendant une lecture ou un enregistrement : l'installation
+        # redémarre l'application, ce qui interromprait la routine en cours.
+        if self._updating or state.recording or state.playing:
+            return
+        self._ask_confirm(
+            t("update.title"),
+            t("update.message", version=self._update_info["version"],
+              current=__version__),
+            t("update.install"),
+            self._start_update,
+        )
+
+    def _start_update(self):
+        self._updating = True
+        self._show_update_btn()
+        threading.Thread(target=self._download_and_swap, name="updater",
+                         daemon=True).start()
+
+    def _download_and_swap(self):
+        """Hors du thread Tk : le téléchargement prend plusieurs secondes."""
+        try:
+            updater.apply(self._update_info)
+        except Exception:
+            log.exception("update failed")
+            state.ui_queue.put(lambda app: app._update_apply_failed())
+            return
+        # La nouvelle instance est déjà lancée : celle-ci n'a qu'à s'effacer.
+        state.ui_queue.put(lambda app: app._quit())
+
+    def _update_apply_failed(self):
+        # « ⚠ » plutôt qu'un message : le détail est dans le journal, et un
+        # nouveau clic sur le badge relance la proposition.
+        self._updating = False
+        self.upd_btn.config(text="⚠", state="normal")
 
     # ── Polling ──────────────────────────────────────────────────────────────
 

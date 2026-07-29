@@ -27,6 +27,7 @@ import paths  # noqa: E402
 import player  # noqa: E402
 import recorder  # noqa: E402
 import settings  # noqa: E402
+import updater  # noqa: E402
 from overlay import OverlayApp  # noqa: E402
 from player import play_loop  # noqa: E402
 from state import state  # noqa: E402
@@ -93,6 +94,14 @@ def request_quit():
 def main():
     log.info("ClickClick %s starting, data in %s", __version__, paths.home())
     settings.load()  # avant l'overlay : il y lit sa position de départ
+
+    # Trace d'une mise à jour précédente, puis recherche de la suivante. Le
+    # résultat arrive par la file UI : le rappel vient d'un fil d'arrière-plan.
+    updater.cleanup_old()
+    if updater.exe_path() and state.update_check:
+        updater.check_async(
+            lambda info: state.ui_queue.put(lambda app: app.notify_update(info))
+        )
 
     mouse_listener = mouse.Listener(
         on_click=recorder.on_click,

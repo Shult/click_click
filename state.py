@@ -31,6 +31,9 @@ class State:
 
         # Préférences d'interface, relues au démarrage (voir settings.py).
         self.sort_by_date: bool          = True
+        # Vérification des mises à jour au démarrage. Pas de bouton dans
+        # l'interface : ça se coupe dans settings.json, et c'est documenté.
+        self.update_check: bool          = True
         self.window_pos: Optional[tuple] = None
         self.app                         = None  # OverlayApp, assigné au démarrage
         self.stop_play                   = threading.Event()

@@ -99,11 +99,23 @@ Ces réglages, la langue, la file d'enchaînement, le tri de la liste des sessio
   "playlist": ["connexion", "routine", "deconnexion"],
   "sort_by_date": true,
   "window_pos": [1670, 20],
-  "language": "fr"           // "en" par défaut
+  "language": "fr",          // "en" par défaut
+  "update_check": true       // vérification des mises à jour au démarrage
 }
 ```
 
 Le fichier se modifie à la main sans risque : chaque valeur douteuse retombe sur son défaut, et un nom de `playlist` qui n'est pas un nom de session valide est écarté.
+
+## Mise à jour
+
+Au démarrage, l'exécutable compare sa version à la [dernière release GitHub](https://github.com/Shult/click_click/releases/latest). S'il existe plus récent, un badge **`⬆ version`** apparaît dans l'en-tête, à côté du numéro de version. Rien ne s'installe tout seul : cliquer sur le badge propose de télécharger et redémarrer, et c'est tout.
+
+À l'installation, l'ancien exécutable est renommé `ClickClick.old.exe` le temps du remplacement, puis effacé au lancement suivant. Sessions, réglages et journal ne bougent pas. En cas d'échec (réseau coupé, téléchargement corrompu), le badge affiche `⚠`, l'application continue avec la version en place, et le détail est dans le journal — un nouveau clic réessaie.
+
+- La vérification est **silencieuse et non bloquante** : hors ligne, l'application démarre comme si de rien n'était.
+- Elle ne s'exécute que depuis l'exécutable empaqueté, jamais en développement.
+- Pour la couper : `"update_check": false` dans `settings.json`. Aucune autre donnée n'est envoyée — c'est une requête anonyme vers l'API GitHub.
+- Le badge est inerte pendant un enregistrement ou une lecture : l'installation redémarre l'application, elle n'interrompra pas une routine en cours.
 
 ## Ce qui est enregistré
 
@@ -166,6 +178,7 @@ uv run pytest
 | `player.py` | Replay et relâchement de sécurité |
 | `sessions.py` | Sérialisation, compression, compatibilité v1 |
 | `settings.py` | Préférences persistées |
+| `updater.py` | Vérification et installation des mises à jour |
 | `i18n.py` | Textes de l'interface, une langue par dictionnaire |
 | `paths.py` | Résolution des emplacements de fichiers |
 | `winapi.py` | DPI, timer, géométrie des écrans, click-through |
@@ -177,4 +190,8 @@ uv run pytest
 uv run pyinstaller ClickClick.spec
 ```
 
-> L'exécutable n'est pas signé et pose un hook clavier global : Windows SmartScreen et la plupart des antivirus le signaleront. UPX est désactivé dans le `.spec` pour limiter les faux positifs, mais seule une signature de code règle vraiment le problème.
+> L'exécutable n'est pas signé et pose un hook clavier global : Windows SmartScreen et la plupart des antivirus le signaleront. UPX est désactivé dans le `.spec` pour limiter les faux positifs, mais seule une signature de code règle vraiment le problème. Les mises à jour installées par l'application elle-même ne repassent pas par SmartScreen : un fichier téléchargé par un programme ne porte pas la marque du web.
+
+## Licence
+
+[MIT](LICENSE).

@@ -4,4 +4,4 @@ Source unique : `pyproject.toml` recopie cette valeur, et un test vérifie que
 les deux ne divergent pas.
 """
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
