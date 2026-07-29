@@ -1,8 +1,10 @@
 [project]
 name = "clickclick"
-version = "1.1.0"  # doit rester aligné sur version.py (voir tests/test_version.py)
+version = "1.2.0"  # doit rester aligné sur version.py (voir tests/test_version.py)
 description = "Enregistreur et rejoueur d'inputs souris/clavier pour Windows, avec overlay flottant."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "pynput>=1.8.1",
