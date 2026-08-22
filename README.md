@@ -9,9 +9,9 @@
 
 *Read this in [français](README.fr.md).*
 
-<!-- DEMO GIF: drop the file at docs/demo.gif, then uncomment the line below.
-<p align="center"><img src="docs/demo.gif" alt="ClickClick recording and replaying a session" width="700"></p>
--->
+<p align="center"><img src="docs/demo.gif" alt="ClickClick recording a drawing in Paint, then replaying it on its own" width="800"></p>
+
+<p align="center"><sub>Recorded once in Paint, then replayed on its own — the overlay turns transparent and clicks pass straight through it.</sub></p>
 
 A floating overlay that stays on top of every window, named sessions saved to disk, a queue to chain several of them, and adjustable speed and repeat count. No installer, no account, no network — beyond an anonymous update check you can turn off.
 

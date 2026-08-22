@@ -9,9 +9,9 @@
 
 *Read this in [English](README.md).*
 
-<!-- GIF DE DÉMO : déposer le fichier dans docs/demo.gif, puis décommenter la ligne ci-dessous.
-<p align="center"><img src="docs/demo.gif" alt="ClickClick enregistre puis rejoue une session" width="700"></p>
--->
+<p align="center"><img src="docs/demo.gif" alt="ClickClick enregistre un dessin dans Paint, puis le rejoue tout seul" width="800"></p>
+
+<p align="center"><sub>Enregistré une fois dans Paint, puis rejoué tout seul — l'overlay devient transparent et les clics passent au travers.</sub></p>
 
 Un overlay flottant qui reste au premier plan de toutes les fenêtres, des sessions nommées et persistées sur disque, une file pour en enchaîner plusieurs, une vitesse et un nombre de répétitions réglables. Pas d'installeur, pas de compte, pas de réseau — hors une vérification de mise à jour anonyme, qui se coupe.
 
