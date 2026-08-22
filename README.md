@@ -1,148 +1,169 @@
 # ClickClick
 
-Enregistre clics, scroll, mouvements souris et frappes clavier, puis les rejoue autant de fois que tu veux. Interface overlay toujours au premier plan, sessions nommées et persistées sur disque.
+**Record your clicks, scrolls, mouse moves and keystrokes — then replay them as many times as you want.**
 
-## Lancement rapide
+[![Release](https://img.shields.io/github/v/release/Shult/click_click)](https://github.com/Shult/click_click/releases/latest)
+[![CI](https://github.com/Shult/click_click/actions/workflows/ci.yml/badge.svg)](https://github.com/Shult/click_click/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+![Platform: Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 
-Double-clique sur **`lancer.bat`** — il installe tout automatiquement à la première ouverture.
+*Read this in [français](README.fr.md).*
 
-> Nécessite Windows 10/11. Aucune installation manuelle requise.
+<!-- DEMO GIF: drop the file at docs/demo.gif, then uncomment the line below.
+<p align="center"><img src="docs/demo.gif" alt="ClickClick recording and replaying a session" width="700"></p>
+-->
+
+A floating overlay that stays on top of every window, named sessions saved to disk, a queue to chain several of them, and adjustable speed and repeat count. No installer, no account, no network — beyond an anonymous update check you can turn off.
+
+## Download
+
+Grab **[`ClickClick.exe` from the latest release](https://github.com/Shult/click_click/releases/latest)** and drop it wherever you like. It creates `sessions/`, `settings.json` and `clickclick.log` next to itself. Windows 10/11, nothing else to install. From then on the app updates itself.
+
+> **The executable is not code-signed** and it installs a global keyboard hook, so SmartScreen will warn you (*More info* → *Run anyway*) and some antivirus products may flag it. See [What it does with your input](#what-it-does-with-your-input) below, or [build it from source](#development) if you would rather not take my word for it.
+
+## What it does with your input
+
+Everything stays on your machine.
+
+- Recorded sessions are plain JSON files sitting next to the executable. You can read them, edit them, delete them.
+- **No telemetry, no analytics, no account.** The only network request the app ever makes is an anonymous `GET` to the GitHub releases API, to compare its version number against the latest release. Turn it off with `"update_check": false` in `settings.json` and it makes none at all.
+- The global keyboard hook is what makes recording keystrokes and global hotkeys possible. It is also, unavoidably, what makes the binary look like a keylogger to an antivirus. The source is right here, and `pyinstaller ClickClick.spec` reproduces the executable.
 
 ## Interface
 
-L'overlay s'affiche en haut à droite de l'écran. Il reste visible par-dessus toutes les fenêtres.
+The overlay sits in the top-right corner of the screen and stays visible above every other window.
 
-Pendant la **lecture**, l'overlay devient transparent et les clics passent au travers — tu interagis normalement avec ton application.
+During **playback** it turns transparent and clicks pass straight through it — you keep interacting with your application normally.
 
-| Bouton | Raccourci | Action |
-|--------|-----------|--------|
-| ⏺ | **F8** | Démarrer l'enregistrement |
-| ⏹ | **F9** | Arrêter et sauvegarder |
-| ▶ | **F10** | Lancer la lecture (la session chargée, ou la file d'enchaînement) |
-| — | **F11** | Masquer / réafficher l'overlay |
-| · | **Échap** | Stopper la lecture |
-| × | **F12** | Quitter |
+| Button | Shortcut | Action |
+|--------|----------|--------|
+| ⏺ | **F8** | Start recording |
+| ⏹ | **F9** | Stop and save |
+| ▶ | **F10** | Start playback (the loaded session, or the queue) |
+| — | **F11** | Hide / show the overlay |
+| · | **Esc** | Stop playback |
+| × | **F12** | Quit |
 
-Ces six touches sont réservées : elles ne sont jamais enregistrées dans une session.
+These six keys are reserved: they are never recorded into a session.
 
-### Masquer l'overlay
+### Hiding the overlay
 
-**F11**, ou le bouton `—` de l'en-tête, escamote l'overlay sans rien arrêter : les raccourcis restent actifs, un enregistrement ou une lecture en cours continue. F11 le fait revenir, au même endroit et toujours au premier plan. Arrêter un enregistrement (F9) le réaffiche de lui-même, pour que la fenêtre de sauvegarde ne flotte pas sans contexte.
+**F11**, or the `—` button in the header, tucks the overlay away without stopping anything: the shortcuts stay live, and a recording or playback in progress carries on. F11 brings it back, in the same place and still on top. Stopping a recording (F9) shows it again on its own, so the save dialog does not float without context.
 
-L'état masqué **n'est pas conservé** au redémarrage : une application qui se lance invisible ressemble à une application qui ne s'est pas lancée.
+The hidden state is **not persisted** across restarts: an application that starts up invisible looks like an application that failed to start.
 
-> Il n'y a pas (encore) d'icône dans la zone de notification : elle imposerait soit `pystray` + `Pillow`, soit une implémentation `Shell_NotifyIcon` maison dans `winapi.py`. F11 rend le même service sans peser sur la taille de l'exécutable.
+> There is no notification-area icon (yet): it would mean either `pystray` + `Pillow`, or a hand-rolled `Shell_NotifyIcon` implementation in `winapi.py`. F11 does the same job without weighing on the executable size.
 
 ### Sessions
 
-Le panneau **📂 Sessions** liste tout ce qui est enregistré sur disque, dans une liste défilable — plus de plafond à dix entrées. Le champ en haut à droite **filtre par nom** (casse ignorée, Échap vide le filtre) ; le compteur sous la liste indique combien de sessions correspondent.
+The **📂 Sessions** panel lists everything saved on disk in a scrollable list — no more ten-entry ceiling. The field in the top right **filters by name** (case-insensitive, Esc clears it); the counter under the list shows how many sessions match.
 
-Un **clic** désigne une session, un **double-clic** la charge. Les quatre boutons agissent sur la session désignée :
+A **click** selects a session, a **double-click** loads it. The four buttons act on the selected one:
 
-| Bouton | Effet |
-|--------|-------|
-| Charger | Charge la session (comme le double-clic) |
-| Renommer | Le nom est validé comme à la sauvegarde ; un nom déjà pris est refusé |
-| Dupliquer | Copie sous le premier nom libre `nom (2)`, `nom (3)`… métadonnées d'origine conservées |
-| Supprimer | **Irréversible** : demande confirmation, efface le fichier sans passer par la corbeille |
+| Button | Effect |
+|--------|--------|
+| Load | Loads the session (same as double-clicking) |
+| Rename | The name is validated as it is on save; a name already taken is refused |
+| Duplicate | Copies under the first free name `name (2)`, `name (3)`… original metadata preserved |
+| Delete | **Irreversible**: asks for confirmation, then erases the file without going through the recycle bin |
 
-La session active apparaît en vert. Si tu la renommes, elle reste active sous son nouveau nom ; si tu la supprimes, l'en-tête revient à `—` mais les évènements déjà chargés restent en mémoire — une lecture en cours n'est pas interrompue et F10 fonctionne toujours.
+The active session shows in green. Rename it and it stays active under its new name; delete it and the header falls back to `—`, but the events already loaded stay in memory — a playback in progress is not interrupted and F10 still works.
 
-### File d'enchaînement
+### Playback queue
 
-Pour jouer plusieurs sessions à la suite, ajoute-les à la **file** en bas du panneau Sessions. `＋ Ajouter la session sélectionnée` l'empile à la fin ; `↑` `↓` la déplacent, `Retirer` l'enlève, `Vider` remet la file à zéro (avec confirmation). Une même session peut y figurer plusieurs fois.
+To play several sessions back to back, add them to the **queue** at the bottom of the Sessions panel. `＋ Add selected session` appends it; `↑` `↓` move it, `Remove` takes it out, `Clear` empties the queue (with confirmation). The same session can appear several times.
 
-**Dès que la file contient une entrée, elle prend le pas sur la session chargée** : F10 joue la file, dans l'ordre, et l'en-tête de l'overlay affiche `⛓ file : N session(s)` pour que ce soit visible sans ouvrir le panneau. Pour rejouer une session seule, vide la file.
+**As soon as the queue holds one entry, it takes precedence over the loaded session**: F10 plays the queue, in order, and the overlay header shows `⛓ queue: N session(s)` so it is visible without opening the panel. To replay a single session, clear the queue.
 
-Pendant la lecture, l'en-tête indique la session en cours et sa position : `alma 03 (2/14)`. Les répétitions s'appliquent à **l'enchaînement entier** : 3 répétitions d'une file de 4 sessions, c'est douze lectures. Le délai sert de pause entre deux sessions comme entre deux passes.
+During playback the header shows the current session and its position: `alma 03 (2/14)`. Repeats apply to **the whole chain**: 3 repeats of a 4-session queue is twelve playbacks. The delay acts as a pause between two sessions just as it does between two passes.
 
-La file est **conservée** dans `settings.json` sous forme de liste de noms, et suit les renommages et les suppressions faites depuis l'application. Une entrée dont le fichier a disparu autrement (effacé depuis l'explorateur) apparaît **en rouge** dans la liste et est simplement sautée à la lecture — le reste de l'enchaînement se joue quand même.
+The queue is **persisted** in `settings.json` as a list of names, and follows renames and deletions made from inside the app. An entry whose file has disappeared some other way (deleted from Explorer) shows up **in red** in the list and is simply skipped during playback — the rest of the chain plays anyway.
 
-Chaque session rend la souris et le clavier avant la suivante : une session mal équilibrée ne peut pas laisser une touche enfoncée pour tout le reste de la file.
+Every session releases the mouse and keyboard before the next one starts: an unbalanced session cannot leave a key held down for the whole rest of the queue.
 
-### Réglages
+### Settings
 
-| Paramètre | Description |
-|-----------|-------------|
-| Répétitions | Nombre de fois que la session est jouée. **Clique sur le nombre** pour le taper directement (Entrée valide, Échap annule) ; **∞** rejoue jusqu'à Échap |
-| Délai (s) | Pause entre chaque passe, et entre deux sessions d'une file |
-| Vitesse | Tempo de la lecture, de **0.25×** à **4×** par paliers (0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4) |
-| Skip moves | Ignore les déplacements souris à la lecture |
-| Langue | Langue de l'interface — voir ci-dessous |
+| Setting | Description |
+|---------|-------------|
+| Repeats | How many times the session is played. **Click the number** to type it directly (Enter confirms, Esc cancels); **∞** replays until Esc |
+| Delay (s) | Pause between each pass, and between two sessions of a queue |
+| Speed | Playback tempo, from **0.25×** to **4×** in steps (0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4) |
+| Skip moves | Ignores mouse movements during playback |
+| Language | Interface language — see below |
 
-En mode infini, le statut affiche la passe en cours sur `∞` — `▶ PLAYING (37/∞)`. Une saisie qui n'est pas un entier ≥ 1 est refusée sans rien changer. Le nombre de passes est figé au lancement de la lecture : modifier le réglage en cours de route n'affecte que la lecture suivante.
+In infinite mode the status shows the current pass over `∞` — `▶ PLAYING (37/∞)`. An input that is not an integer ≥ 1 is refused without changing anything. The number of passes is frozen when playback starts: changing the setting midway only affects the next playback.
 
-La vitesse divise les horodatages enregistrés : à 2× une session de 30 s en prend 15. Elle ne s'applique **pas** au délai, qui est une pause voulue et non du rythme enregistré. Comme les répétitions, elle est figée au lancement de la lecture.
+Speed divides the recorded timestamps: at 2× a 30 s session takes 15. It does **not** apply to the delay, which is a deliberate pause rather than recorded rhythm. Like repeats, it is frozen when playback starts.
 
-> Au-delà de 2×, l'application pilotée peut ne plus suivre : un menu qui met 200 ms à s'ouvrir ne s'ouvrira pas plus vite parce que le clic suivant arrive plus tôt. Une session qui échoue à 4× n'est pas forcément mal enregistrée.
+> Past 2×, the application being driven may not keep up: a menu that takes 200 ms to open will not open any faster because the next click arrives sooner. A session that fails at 4× is not necessarily badly recorded.
 
-### Langue
+### Language
 
-L'interface est en **anglais par défaut**. Le bouton `Language` du panneau Réglages fait défiler les langues disponibles — actuellement **English** et **Français** — et l'overlay se redessine immédiatement dans la nouvelle langue, panneau ouvert compris. Le choix est conservé dans `settings.json`.
+The interface is in **English by default**. The `Language` button in the Settings panel cycles through the available languages — currently **English** and **Français** — and the overlay redraws immediately in the new one, open panel included. The choice is kept in `settings.json`.
 
-Chaque langue est affichée dans sa propre langue (`Français`, jamais `French`) : c'est le seul libellé qui doive rester lisible pour quelqu'un qui ne comprend pas l'interface qu'il a sous les yeux.
+Each language is shown in its own language (`Français`, never `French`): it is the one label that has to stay readable to someone who cannot read the interface in front of them.
 
-Le journal, lui, est **en anglais** en toutes circonstances : il n'est pas traduit et ne suit pas ce réglage. Une trace se recoupe d'un poste à l'autre, se colle dans une issue et se cherche sur le web — trois choses qu'une traduction complique. Les commentaires du code restent en français.
+The log, on the other hand, is **in English** under all circumstances: it is not translated and does not follow this setting. A trace gets compared across machines, pasted into an issue and searched for on the web — three things a translation makes harder. Code comments are in French.
 
-> Pour ajouter une langue : un dictionnaire de plus dans `i18n.py`, déclaré dans `LANGUAGES`. Un test vérifie qu'aucune clé ne manque — une langue incomplète afficherait de l'anglais au milieu du reste. À défaut, toute clé absente retombe sur l'anglais plutôt que de faire tomber la fenêtre.
+> To add a language: one more dictionary in `i18n.py`, declared in `LANGUAGES`. A test checks that no key is missing — an incomplete language would show English in the middle of everything else. Failing that, any absent key falls back to English rather than bringing the window down.
 
-### Persistance
+### Persistence
 
-Ces réglages, la langue, la file d'enchaînement, le tri de la liste des sessions et la position de l'overlay sont **conservés d'un lancement à l'autre** (`settings.json`). Un fichier absent, illisible ou incohérent est ignoré sans bruit : l'application repart sur ses valeurs par défaut, clé par clé — un `settings.json` écrit par une version antérieure se charge donc sans rien perdre du reste.
+These settings, the language, the playback queue, the sort order of the session list and the overlay position are **kept from one launch to the next** (`settings.json`). A file that is missing, unreadable or inconsistent is ignored silently: the app falls back on its defaults, key by key — so a `settings.json` written by an earlier version loads without losing anything else.
 
 ```jsonc
 {
-  "play_times": 0,              // 0 = infini, sinon 1 à 9999
+  "play_times": 0,              // 0 = infinite, otherwise 1 to 9999
   "play_delay": 3.0,
-  "play_speed": 1.5,            // 0.25 à 4
+  "play_speed": 1.5,            // 0.25 to 4
   "play_skip_moves": false,
-  "playlist": ["connexion", "routine", "deconnexion"],
+  "playlist": ["login", "daily-run", "logout"],
   "sort_by_date": true,
   "window_pos": [1670, 20],
-  "language": "fr",          // "en" par défaut
-  "update_check": true       // vérification des mises à jour au démarrage
+  "language": "fr",          // "en" by default
+  "update_check": true       // check for updates at startup
 }
 ```
 
-Le fichier se modifie à la main sans risque : chaque valeur douteuse retombe sur son défaut, et un nom de `playlist` qui n'est pas un nom de session valide est écarté.
+The file can be edited by hand safely: every questionable value falls back to its default, and a `playlist` entry that is not a valid session name is dropped.
 
-## Mise à jour
+## Updating
 
-Au démarrage, l'exécutable compare sa version à la [dernière release GitHub](https://github.com/Shult/click_click/releases/latest). S'il existe plus récent, un badge **`⬆ version`** apparaît dans l'en-tête, à côté du numéro de version. Rien ne s'installe tout seul : cliquer sur le badge propose de télécharger et redémarrer, et c'est tout.
+At startup the executable compares its version against the [latest GitHub release](https://github.com/Shult/click_click/releases/latest). If a newer one exists, an **`⬆ version`** badge appears in the header, next to the version number. Nothing installs on its own: clicking the badge offers to download and restart, and that is all.
 
-À l'installation, l'ancien exécutable est renommé `ClickClick.old.exe` le temps du remplacement, puis effacé au lancement suivant. Sessions, réglages et journal ne bougent pas. En cas d'échec (réseau coupé, téléchargement corrompu), le badge affiche `⚠`, l'application continue avec la version en place, et le détail est dans le journal — un nouveau clic réessaie.
+During installation the old executable is renamed `ClickClick.old.exe` for the duration of the swap, then deleted on the next launch. Sessions, settings and log are left alone. On failure (no network, corrupted download) the badge shows `⚠`, the app carries on with the version in place, and the details are in the log — clicking again retries.
 
-- La vérification est **silencieuse et non bloquante** : hors ligne, l'application démarre comme si de rien n'était.
-- Elle ne s'exécute que depuis l'exécutable empaqueté, jamais en développement.
-- Pour la couper : `"update_check": false` dans `settings.json`. Aucune autre donnée n'est envoyée — c'est une requête anonyme vers l'API GitHub.
-- Le badge est inerte pendant un enregistrement ou une lecture : l'installation redémarre l'application, elle n'interrompra pas une routine en cours.
+- The check is **silent and non-blocking**: offline, the app starts as if nothing happened.
+- It only runs from the packaged executable, never in development.
+- To turn it off: `"update_check": false` in `settings.json`. No other data is sent — it is an anonymous request to the GitHub API.
+- The badge is inert during a recording or a playback: installing restarts the app, and it will not interrupt a routine in progress.
 
-## Ce qui est enregistré
+## What gets recorded
 
-- Clics souris (gauche, droit, molette)
-- Défilement (scroll)
-- Déplacements souris (échantillonnés à 60 Hz)
-- Frappes clavier (touches maintenues, combos)
+- Mouse clicks (left, right, middle)
+- Scrolling
+- Mouse movements (sampled at 60 Hz)
+- Keystrokes (held keys, combos)
 - Drag & drop
 
-Arrêter l'enregistrement pendant un maintien de touche ou un drag referme automatiquement l'appui : une session est toujours équilibrée, et le replay ne peut pas laisser une touche enfoncée.
+Stopping a recording while a key is held or a drag is in progress closes the press automatically: a session is always balanced, and replay cannot leave a key stuck down.
 
-## Où sont les fichiers
+## Where the files live
 
-Tout est stocké **à côté de l'exécutable** (ou du dossier source en développement), quel que soit le répertoire depuis lequel l'application est lancée :
+Everything is stored **next to the executable** (or the source folder in development), whichever directory the app was launched from:
 
 ```
 ClickClick.exe
-sessions/          ← une session par fichier .json
-settings.json      ← réglages de lecture, file d'enchaînement, tri, position
-clickclick.log     ← journal, rotatif (4 × 1 Mo)
+sessions/          ← one session per .json file
+settings.json      ← playback settings, queue, sort order, position
+clickclick.log     ← log, rotating (4 × 1 MB)
 ```
 
-Si ce dossier est en lecture seule, tout bascule vers `%LOCALAPPDATA%\ClickClick`. La variable d'environnement `CLICKCLICK_HOME` force un emplacement.
+If that folder is read-only, everything falls back to `%LOCALAPPDATA%\ClickClick`. The `CLICKCLICK_HOME` environment variable forces a location.
 
-En cas de problème, le journal est le premier endroit à regarder : l'application est empaquetée sans console, donc rien ne s'affiche à l'écran.
+When something goes wrong, the log is the first place to look: the app is packaged without a console, so nothing is printed to screen.
 
-## Format de session
+## Session format
 
 ```jsonc
 {
@@ -156,13 +177,13 @@ En cas de problème, le journal est le premier endroit à regarder : l'applicati
 }
 ```
 
-Les sessions **v1** (un tableau d'évènements nu, sans métadonnées) restent lisibles telles quelles ; elles sont réécrites en v2 à la prochaine sauvegarde.
+**v1** sessions (a bare array of events, no metadata) are still readable as-is; they are rewritten as v2 on the next save.
 
-Les coordonnées sont **absolues**. `screen` retient la géométrie du bureau au moment de l'enregistrement : si elle diffère au chargement, l'overlay affiche `⚠ (écran différent)` et le replay sera décalé. Les positions rejouées sont contraintes au bureau virtuel courant.
+Coordinates are **absolute**. `screen` records the desktop geometry at recording time: if it differs when loading, the overlay shows `⚠ (different screen)` and the replay will be offset. Replayed positions are clamped to the current virtual desktop.
 
-À l'écriture, les déplacements qui répètent la position précédente sont supprimés et les horodatages arrondis à la milliseconde — sans perte pour le replay, pour environ deux tiers de taille en moins.
+On write, movements repeating the previous position are dropped and timestamps rounded to the millisecond — no loss for replay, for roughly two thirds off the file size.
 
-## Développement
+## Development
 
 ```powershell
 uv sync
@@ -170,28 +191,34 @@ uv run python mouse_recorder.py
 uv run pytest
 ```
 
-| Module | Rôle |
-|--------|------|
-| `mouse_recorder.py` | Point d'entrée, raccourcis globaux |
-| `overlay.py` | Interface Tkinter |
-| `recorder.py` | Capture des évènements |
-| `player.py` | Replay et relâchement de sécurité |
-| `sessions.py` | Sérialisation, compression, compatibilité v1 |
-| `settings.py` | Préférences persistées |
-| `updater.py` | Vérification et installation des mises à jour |
-| `i18n.py` | Textes de l'interface, une langue par dictionnaire |
-| `paths.py` | Résolution des emplacements de fichiers |
-| `winapi.py` | DPI, timer, géométrie des écrans, click-through |
-| `logs.py` | Journalisation et capture des exceptions |
+Or double-click **`lancer.bat`**, which installs `uv` and the dependencies on first run, then starts the app.
 
-### Construire l'exécutable
+| Module | Role |
+|--------|------|
+| `mouse_recorder.py` | Entry point, global hotkeys |
+| `overlay.py` | Tkinter interface |
+| `recorder.py` | Event capture |
+| `player.py` | Replay and safety release |
+| `sessions.py` | Serialization, compression, v1 compatibility |
+| `settings.py` | Persisted preferences |
+| `updater.py` | Update check and installation |
+| `i18n.py` | Interface strings, one language per dictionary |
+| `paths.py` | File location resolution |
+| `winapi.py` | DPI, timer, screen geometry, click-through |
+| `logs.py` | Logging and exception capture |
+
+Contributions are welcome — open an issue first for anything substantial. Code comments are in French; interface strings and log messages are in English.
+
+### Building the executable
 
 ```powershell
 uv run pyinstaller ClickClick.spec
 ```
 
-> L'exécutable n'est pas signé et pose un hook clavier global : Windows SmartScreen et la plupart des antivirus le signaleront. UPX est désactivé dans le `.spec` pour limiter les faux positifs, mais seule une signature de code règle vraiment le problème. Les mises à jour installées par l'application elle-même ne repassent pas par SmartScreen : un fichier téléchargé par un programme ne porte pas la marque du web.
+Releases are built by [`.github/workflows/release.yml`](.github/workflows/release.yml) when a `v*` tag is pushed, and the SHA-256 of the executable is published in the release notes.
 
-## Licence
+> The executable is not signed and installs a global keyboard hook: Windows SmartScreen and most antivirus products will flag it. UPX is disabled in the `.spec` to limit false positives, but only code signing actually solves the problem. Updates installed by the app itself do not go through SmartScreen: a file downloaded by a program does not carry the mark of the web.
+
+## License
 
 [MIT](LICENSE).

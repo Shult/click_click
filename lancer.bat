@@ -1,15 +1,15 @@
 @echo off
 chcp 65001 >nul
-title Mouse Recorder
+title ClickClick
 
 echo.
-echo  === Mouse Recorder ===
+echo  === ClickClick ===
 echo.
 
 :: Vérifier si uv est installé
 where uv >nul 2>&1
 if %errorlevel% neq 0 (
-    echo  Installation de uv ^(gestionnaire Python^)...
+    echo  Installing uv ^(Python toolchain^)...
     powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
     :: Recharger le PATH
@@ -18,18 +18,18 @@ if %errorlevel% neq 0 (
     where uv >nul 2>&1
     if %errorlevel% neq 0 (
         echo.
-        echo  ERREUR : l'installation de uv a echoue.
-        echo  Relance ce fichier en tant qu'administrateur.
+        echo  ERROR: uv installation failed.
+        echo  Try running this file as administrator.
         pause
         exit /b 1
     )
-    echo  uv installe avec succes.
+    echo  uv installed successfully.
     echo.
 )
 
 :: Installer les dépendances si besoin
 if not exist ".venv" (
-    echo  Preparation de l'environnement ^(premiere fois uniquement^)...
+    echo  Preparing the environment ^(first run only^)...
     uv sync
     echo.
 )
