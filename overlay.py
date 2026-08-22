@@ -30,7 +30,7 @@ class OverlayApp:
         state.app = self
 
         self.root = tk.Tk()
-        self.root.title("Mouse Recorder")
+        self.root.title("ClickClick")
         self.root.overrideredirect(True)
         self.root.wm_attributes("-topmost", True)
         self.root.wm_attributes("-alpha", 0.93)
@@ -109,7 +109,7 @@ class OverlayApp:
     def _build_ui(self):
         hdr = tk.Frame(self.root, bg=self.HDR, cursor="fleur")
         hdr.pack(fill="x")
-        tk.Label(hdr, text="Mouse Recorder", bg=self.HDR, fg="#555555",
+        tk.Label(hdr, text="ClickClick", bg=self.HDR, fg="#555555",
                  font=("Segoe UI", 8)).pack(side="left", padx=(7, 0), pady=3)
         # Affiché en clair : sans repère visible, impossible de savoir quelle
         # version tourne quand deux binaires coexistent sur la machine.
