@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag existant à (re)construire, par ex. v1.2.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # Un tag qui ne correspond pas à version.py livrerait un exécutable qui
+      # s'annonce plus vieux que la release : l'updater proposerait indéfiniment
+      # une mise à jour vers une version déjà installée.
+      - name: Check the tag matches version.py
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          version=$(uv run python -c "import version; print(version.__version__)")
+          if [ "${TAG#v}" != "$version" ]; then
+            echo "::error::tag $TAG vs version.py $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_ENV"
+
+      - name: Run tests
+        run: uv run pytest -q
+
+      - name: Build the executable
+        run: uv run pyinstaller ClickClick.spec
+
+      - name: Compute the checksum
+        shell: bash
+        run: |
+          sha=$(sha256sum dist/ClickClick.exe | cut -d' ' -f1)
+          echo "sha256=$sha" >> "$GITHUB_ENV"
+          echo "SHA-256: $sha"
+
+      # Une release déjà rédigée à la main garde ses notes : on ne fait que
+      # remplacer l'exécutable. Sinon on ouvre un brouillon à compléter.
+      - name: Publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/ClickClick.exe --clobber
+          else
+            cat > notes.md <<EOF
+          Download \`ClickClick.exe\` below and drop it wherever you like — it creates \`sessions/\`, \`settings.json\` and \`clickclick.log\` next to itself. Windows 10/11. From then on the app updates itself.
+
+          > The executable is not code-signed and installs a global keyboard hook, so SmartScreen will warn you (*More info* → *Run anyway*) and some antivirus products may flag it. Build it from source instead with \`uv sync && uv run pyinstaller ClickClick.spec\`.
+
+          \`\`\`
+          SHA-256  ${sha256}  ClickClick.exe
+          \`\`\`
+          EOF
+            gh release create "$TAG" dist/ClickClick.exe \
+              --draft --title "ClickClick $TAG" --notes-file notes.md
+          fi

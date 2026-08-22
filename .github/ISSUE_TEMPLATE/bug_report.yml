@@ -1,0 +1,46 @@
+name: Bug report
+description: Something does not work the way it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ClickClick version
+      description: The number shown in the overlay header, or the release you downloaded.
+      placeholder: "1.2.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How are you running it
+      options:
+        - ClickClick.exe from a release
+        - From source (uv run python mouse_recorder.py)
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Relevant part of clickclick.log
+      description: >
+        The log sits next to the executable (or in %LOCALAPPDATA%\ClickClick).
+        The app is packaged without a console, so this is usually where the answer is.
+      render: text
+
+  - type: input
+    id: screens
+    attributes:
+      label: Screen setup
+      description: Only if the problem is about replay landing in the wrong place.
+      placeholder: "3 monitors, 4920x1920, 150% scaling on the main one"
