@@ -1,4 +1,5 @@
 import json
+import os
 import re
 
 import pytest
@@ -418,3 +419,69 @@ def test_duplicate_reports_a_missing_session():
     with pytest.raises(SessionError,
                        match=_msg("error.session_missing", name="fantôme")):
         sessions.duplicate_session("fantôme")
+
+
+# ── Rechargement d'une session éditée en dehors de l'application ─────────────
+
+def _bump_mtime(name: str, seconds: float = 10.0) -> None:
+    """Vieillit artificiellement le fichier d'une session.
+
+    Deux écritures successives peuvent porter le même horodatage : s'en
+    remettre à l'horloge rendrait ces tests dépendants de la résolution du
+    système de fichiers.
+    """
+    path = sessions.session_path(name)
+    st = path.stat()
+    os.utime(path, (st.st_atime, st.st_mtime + seconds))
+
+
+def test_refresh_active_reloads_a_file_edited_outside(fresh_state):
+    sessions.save_session("run", [{"type": "move", "x": 1, "y": 1, "t": 0.0}])
+    sessions.load_session("run")
+
+    sessions.save_session("run", [
+        {"type": "move", "x": 9, "y": 9, "t": 0.0},
+        {"type": "move", "x": 9, "y": 8, "t": 5.0},
+    ])
+    _bump_mtime("run")
+
+    assert sessions.refresh_active() is True
+    assert len(fresh_state.events) == 2
+    assert fresh_state.events[-1]["t"] == 5.0
+
+
+def test_refresh_active_leaves_an_unchanged_file_alone(fresh_state, monkeypatch):
+    sessions.save_session("run", [{"type": "move", "x": 1, "y": 1, "t": 0.0}])
+    sessions.load_session("run")
+
+    def explode(_name):
+        raise AssertionError("le fichier n'a pas bougé, rien à relire")
+
+    monkeypatch.setattr(sessions, "read_session", explode)
+    assert sessions.refresh_active() is False
+
+
+def test_refresh_active_keeps_memory_when_the_file_is_gone(fresh_state):
+    """Une session supprimée pendant qu'elle est chargée reste jouable."""
+    sessions.save_session("run", [{"type": "move", "x": 1, "y": 1, "t": 0.0}])
+    sessions.load_session("run")
+    sessions.session_path("run").unlink()
+
+    assert sessions.refresh_active() is False
+    assert fresh_state.events == [{"type": "move", "x": 1, "y": 1, "t": 0.0}]
+
+
+def test_refresh_active_without_a_loaded_session(fresh_state):
+    assert fresh_state.active_session is None
+    assert sessions.refresh_active() is False
+
+
+def test_saving_a_recording_marks_it_as_up_to_date(fresh_state):
+    """Sauvegarder date la mémoire : la lecture qui suit ne relit pas pour rien."""
+    sessions.save_session("run", [{"type": "move", "x": 1, "y": 1, "t": 0.0}])
+    sessions.load_session("run")
+    assert fresh_state.session_mtime == sessions.file_mtime("run")
+
+
+def test_file_mtime_of_a_missing_session():
+    assert sessions.file_mtime("fantôme") is None

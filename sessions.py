@@ -186,6 +186,14 @@ def read_session(name: str) -> dict:
         ) from exc
 
 
+def file_mtime(name: str) -> float | None:
+    """Date de modification du fichier d'une session, `None` s'il a disparu."""
+    try:
+        return session_path(name).stat().st_mtime
+    except OSError:
+        return None
+
+
 def screens_differ(recorded: dict | None, current: dict | None) -> bool:
     if not recorded or not current:
         return False
@@ -206,6 +214,7 @@ def load_session(name: str) -> bool:
 
     state.events = payload["events"]
     state.active_session = name
+    state.session_mtime = file_mtime(name)
     state.session_screen = payload.get("screen")
     state.screen_mismatch = screens_differ(
         state.session_screen, winapi.virtual_screen()
@@ -217,6 +226,32 @@ def load_session(name: str) -> bool:
         )
     log.info("session %r loaded: %d events", name, len(state.events))
     return True
+
+
+def refresh_active() -> bool:
+    """Relit la session chargée si son fichier a changé depuis le chargement.
+
+    Éditer le JSON à la main est un usage prévu — accélérer un replay en
+    retouchant les horodatages, par exemple. Mais la lecture rejoue les
+    évènements en mémoire : sans rechargement manuel, l'édition n'avait aucun
+    effet, et rien ne le signalait puisque l'en-tête continuait d'afficher le
+    bon nom. Le seul indice était une durée inchangée, qui ne se remarque qu'en
+    regardant sa montre.
+
+    Un fichier disparu ne déclenche rien : les évènements en mémoire sont alors
+    tout ce qui reste, et une session supprimée pendant qu'elle est chargée
+    reste jouable — c'est un comportement voulu, documenté dans le README.
+    """
+    name = state.active_session
+    if not name:
+        return False
+
+    mtime = file_mtime(name)
+    if mtime is None or mtime == state.session_mtime:
+        return False
+
+    log.info("session %r changed on disk, reloading before playback", name)
+    return load_session(name)
 
 
 # ── Gestion des fichiers de session ──────────────────────────────────────────

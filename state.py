@@ -49,6 +49,11 @@ class State:
         self.session_screen: Optional[dict] = None
         self.screen_mismatch: bool       = False
 
+        # Date du fichier d'où viennent les évènements en mémoire. Sert à
+        # repérer une édition faite en dehors de l'application, pour que la
+        # lecture joue le disque et non une mémoire périmée.
+        self.session_mtime: Optional[float] = None
+
         # Les écouteurs pynput tournent hors du thread Tk : ils déposent ici
         # les actions à exécuter dans la boucle graphique.
         self.ui_queue: queue.Queue       = queue.Queue()

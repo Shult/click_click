@@ -183,6 +183,8 @@ Les coordonnées sont **absolues**. `screen` retient la géométrie du bureau au
 
 À l'écriture, les déplacements qui répètent la position précédente sont supprimés et les horodatages arrondis à la milliseconde — sans perte pour le replay, pour environ deux tiers de taille en moins.
 
+**Éditer une session à la main est un usage prévu** — retoucher les horodatages pour accélérer un replay, par exemple. La lecture relit le fichier dès qu'il a changé sur le disque depuis son chargement : l'édition prend effet à la lecture suivante, sans rien recharger à la main. Un fichier *disparu*, lui, ne change rien : ce qui est déjà en mémoire reste jouable.
+
 ## Développement
 
 ```powershell

@@ -183,6 +183,8 @@ Coordinates are **absolute**. `screen` records the desktop geometry at recording
 
 On write, movements repeating the previous position are dropped and timestamps rounded to the millisecond — no loss for replay, for roughly two thirds off the file size.
 
+**Editing a session by hand is a supported use** — rewriting timestamps to speed up a replay, for instance. Playback re-reads the file whenever it changed on disk since it was loaded, so an edit takes effect on the next run with nothing to reload by hand. A file that has *disappeared* changes nothing: what is already in memory stays playable.
+
 ## Development
 
 ```powershell

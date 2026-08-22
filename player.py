@@ -113,6 +113,10 @@ def sequence() -> list[tuple[str, list]]:
     passe d'une boucle infinie n'aurait aucun intérêt.
     """
     if not state.playlist:
+        # La file relit le disque à chaque lecture (plus bas) ; la session
+        # chargée, elle, jouait sa copie en mémoire. Une retouche du fichier
+        # restait donc sans effet d'un côté et pas de l'autre.
+        sessions.refresh_active()
         return [(state.active_session or "—", _filtered(state.events))]
 
     out = []

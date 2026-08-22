@@ -867,6 +867,7 @@ class OverlayApp:
                 error_var.set(str(exc))
                 return
             state.active_session = name
+            state.session_mtime = sessions.file_mtime(name)
             state.session_screen = winapi.virtual_screen()
             state.screen_mismatch = False
             dialog.destroy()

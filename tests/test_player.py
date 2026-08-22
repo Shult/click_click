@@ -1,5 +1,6 @@
 """Le filet de sécurité du replay : rien ne doit rester enfoncé."""
 
+import os
 import threading
 import time
 
@@ -328,6 +329,40 @@ def test_sequence_falls_back_to_the_loaded_session(fresh_state):
     fresh_state.events = [{"type": "move", "x": 9, "y": 9, "t": 0.0}]
     fresh_state.active_session = "chargée"
     assert player.sequence() == [("chargée", fresh_state.events)]
+
+
+def _bump_mtime(name: str, seconds: float = 10.0) -> None:
+    """Vieillit le fichier : deux écritures d'affilée peuvent partager leur date."""
+    path = sessions.session_path(name)
+    st = path.stat()
+    os.utime(path, (st.st_atime, st.st_mtime + seconds))
+
+
+def test_sequence_picks_up_a_session_edited_outside(fresh_state):
+    """Le cœur du correctif : la lecture joue le disque, pas une mémoire périmée."""
+    sessions.save_session("run", [{"type": "move", "x": 1, "y": 1, "t": 0.0}])
+    sessions.load_session("run")
+
+    # Le cas réel : accélérer un replay en retouchant les horodatages du JSON.
+    sessions.save_session("run", [
+        {"type": "move", "x": 1, "y": 1, "t": 0.0},
+        {"type": "click", "x": 5, "y": 5, "button": "left", "pressed": True, "t": 1.0},
+    ])
+    _bump_mtime("run")
+
+    (name, evts), = player.sequence()
+    assert name == "run"
+    assert [e["type"] for e in evts] == ["move", "click"]
+
+
+def test_sequence_keeps_a_deleted_session_playable(fresh_state):
+    """Supprimer la session active ne doit pas vider ce qui est déjà chargé."""
+    sessions.save_session("run", [{"type": "move", "x": 1, "y": 1, "t": 0.0}])
+    sessions.load_session("run")
+    sessions.delete_session("run")
+
+    (_name, evts), = player.sequence()
+    assert [e["type"] for e in evts] == ["move"]
 
 
 def test_sequence_reads_the_playlist_in_order(fresh_state):
